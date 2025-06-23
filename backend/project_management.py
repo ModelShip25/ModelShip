@@ -1,12 +1,18 @@
-from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks, UploadFile, File
 from sqlalchemy.orm import Session
 from database import get_db
-from models import User, Project, LabelSchema, ProjectAssignment, Organization, UserRole, ProjectStatus, LabelType
+from models import User, Project, LabelSchema, ProjectAssignment, Organization, UserRole, ProjectStatus, LabelType, File as FileModel
 from auth import get_current_user
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 import logging
+import json
+import os
+import uuid
+
+# Import file storage system
+from file_storage import project_storage, user_storage
 
 router = APIRouter(prefix="/api/projects", tags=["project_management"])
 
@@ -45,6 +51,35 @@ class ProjectAssignmentCreate(BaseModel):
     role: UserRole
     assigned_items: int = 0
 
+class ProjectService:
+    """Service for managing projects and datasets"""
+    
+    def __init__(self):
+        self.supported_project_types = {
+            "image_classification": {
+                "description": "Single label per image",
+                "supported_formats": ["jpg", "jpeg", "png", "gif", "webp"],
+                "default_schema": ["positive", "negative"]
+            },
+            "object_detection": {
+                "description": "Multiple objects with bounding boxes",
+                "supported_formats": ["jpg", "jpeg", "png", "gif", "webp"],
+                "default_schema": ["person", "car", "bike", "animal", "object"]
+            },
+            "text_classification": {
+                "description": "Text document classification",
+                "supported_formats": ["txt", "csv", "json"],
+                "default_schema": ["positive", "negative", "neutral"]
+            },
+            "mixed_dataset": {
+                "description": "Images and text combined",
+                "supported_formats": ["jpg", "jpeg", "png", "txt", "csv"],
+                "default_schema": ["category_a", "category_b", "category_c"]
+            }
+        }
+
+project_service = ProjectService()
+
 @router.post("/")
 async def create_project(
     project_data: ProjectCreate,
@@ -82,6 +117,20 @@ async def create_project(
         db.add(owner_assignment)
         db.commit()
         
+        # Create default label schema
+        default_labels = project_service.supported_project_types[project_data.project_type]["default_schema"]
+        
+        label_schema = LabelSchema(
+            project_id=project.id,
+            name="Default Schema",
+            label_type=LabelType.OBJECT_DETECTION if project_data.project_type == "object_detection" else LabelType.CLASSIFICATION,
+            categories=default_labels,
+            is_multi_label=False  # Default for now, can be updated later
+        )
+        
+        db.add(label_schema)
+        db.commit()
+        
         logger.info(f"Project created: {project.id} by user {current_user.id}")
         
         return {
@@ -90,12 +139,60 @@ async def create_project(
             "status": project.status,
             "project_type": project.project_type,
             "created_at": project.created_at,
+            "default_labels": default_labels,
             "message": "Project created successfully"
         }
         
     except Exception as e:
         logger.error(f"Failed to create project: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to create project: {str(e)}")
+
+@router.post("/create")
+async def create_project_alias(
+    project_data: ProjectCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new labeling project (alias for POST /)"""
+    return await create_project(project_data, current_user, db)
+
+@router.post("/create-test")
+async def create_test_project(project_data: ProjectCreate):
+    """Create a test project without authentication - for Phase 1 testing"""
+    
+    try:
+        logger.info(f"Creating test project with data: {project_data}")
+        
+        # Get or create test user
+        test_user = user_storage.get_or_create_test_user()
+        logger.info(f"Using test user: {test_user['user_id']}")
+        
+        # Create project using file storage
+        project_dict = {
+            "name": project_data.name,
+            "description": project_data.description,
+            "project_type": project_data.project_type,
+            "confidence_threshold": project_data.confidence_threshold,
+            "auto_approve_threshold": project_data.auto_approve_threshold
+        }
+        
+        project = project_storage.create_project(project_dict, test_user["user_id"])
+        logger.info(f"Project created successfully: {project['project_id']}")
+        
+        return {
+            "project_id": project["project_id"],
+            "name": project["name"],
+            "status": project["status"],
+            "project_type": project["project_type"],
+            "created_at": project["created_at"],
+            "message": "Test project created successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to create test project: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Failed to create test project: {str(e)}")
 
 @router.get("/")
 async def get_user_projects(
@@ -164,6 +261,35 @@ async def get_user_projects(
     except Exception as e:
         logger.error(f"Failed to get projects: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get projects: {str(e)}")
+
+@router.get("/test-projects")
+async def get_test_projects(
+    limit: int = Query(20, le=100),
+    offset: int = Query(0, ge=0)
+):
+    """Get test projects for Phase 1 testing - no authentication required"""
+    
+    try:
+        # Get test user
+        test_user = user_storage.get_or_create_test_user()
+        
+        # Get projects for test user
+        all_projects = project_storage.list_projects(test_user["user_id"])
+        
+        # Apply pagination
+        total_count = len(all_projects)
+        projects = all_projects[offset:offset + limit]
+        
+        return {
+            "projects": projects,
+            "total_count": total_count,
+            "limit": limit,
+            "offset": offset
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get test projects: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get test projects: {str(e)}")
 
 @router.get("/{project_id}")
 async def get_project_details(
@@ -583,4 +709,287 @@ async def get_project_templates():
             "step_5": "Configure auto-labeling parameters",
             "step_6": "Assign team members and start labeling"
         }
+    }
+
+@router.post("/{project_id}/upload")
+async def upload_project_files(
+    project_id: int,
+    files: List[UploadFile] = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Upload files to a project dataset"""
+    
+    # Verify project ownership
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.owner_id == current_user.id
+    ).first()
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Get supported formats for this project type
+    supported_formats = project_service.supported_project_types[project.project_type]["supported_formats"]
+    
+    # Validate files
+    for file in files:
+        file_ext = file.filename.split('.')[-1].lower() if '.' in file.filename else ''
+        if file_ext not in supported_formats:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"File type '.{file_ext}' not supported for {project.project_type}"
+            )
+    
+    # Create upload directory
+    upload_dir = os.path.join("uploads", "projects", str(project_id))
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    # Process files
+    uploaded_files = []
+    for file in files:
+        try:
+            # Generate unique filename
+            file_id = str(uuid.uuid4())
+            file_ext = file.filename.split('.')[-1] if '.' in file.filename else ''
+            unique_filename = f"{file_id}.{file_ext}"
+            file_path = os.path.join(upload_dir, unique_filename)
+            
+            # Save file
+            contents = await file.read()
+            with open(file_path, "wb") as f:
+                f.write(contents)
+            
+            # Create database record
+            file_record = FileModel(
+                user_id=current_user.id,
+                project_id=project_id,
+                filename=unique_filename,
+                file_path=file_path,
+                file_size=len(contents),
+                file_type=file.content_type or f"application/{file_ext}",
+                status="uploaded"
+            )
+            
+            db.add(file_record)
+            uploaded_files.append({
+                "original_filename": file.filename,
+                "stored_filename": unique_filename,
+                "file_size": len(contents),
+                "status": "uploaded"
+            })
+            
+        except Exception as e:
+            # Clean up file if database operation fails
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            
+            uploaded_files.append({
+                "original_filename": file.filename,
+                "status": "error",
+                "error_message": str(e)
+            })
+    
+    # Update project statistics
+    project.total_items += len([f for f in uploaded_files if f["status"] == "uploaded"])
+    db.commit()
+    
+    return {
+        "project_id": project_id,
+        "uploaded_files": uploaded_files,
+        "successful_uploads": len([f for f in uploaded_files if f["status"] == "uploaded"]),
+        "failed_uploads": len([f for f in uploaded_files if f["status"] == "error"]),
+        "project_total_items": project.total_items
+    }
+
+@router.post("/{project_id}/team/invite")
+def invite_team_member(
+    project_id: int,
+    invitation_data: Dict[str, Any],
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Invite a team member to the project"""
+    
+    # Verify project ownership
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.owner_id == current_user.id
+    ).first()
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Extract invitation details
+    user_email = invitation_data.get("email")
+    role = invitation_data.get("role", "labeler")
+    
+    # Validate role
+    if role not in [r.value for r in UserRole]:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    
+    # Find user by email
+    invited_user = db.query(User).filter(User.email == user_email).first()
+    if not invited_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if already assigned
+    existing_assignment = db.query(ProjectAssignment).filter(
+        ProjectAssignment.project_id == project_id,
+        ProjectAssignment.user_id == invited_user.id
+    ).first()
+    
+    if existing_assignment:
+        raise HTTPException(status_code=400, detail="User already assigned to this project")
+    
+    # Create assignment
+    assignment = ProjectAssignment(
+        project_id=project_id,
+        user_id=invited_user.id,
+        role=UserRole(role)
+    )
+    
+    db.add(assignment)
+    db.commit()
+    
+    return {
+        "message": "Team member invited successfully",
+        "project_id": project_id,
+        "invited_user": {
+            "id": invited_user.id,
+            "email": invited_user.email,
+            "role": role
+        }
+    }
+
+@router.put("/{project_id}/settings")
+def update_project_settings(
+    project_id: int,
+    settings_data: Dict[str, Any],
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update project settings"""
+    
+    # Verify project ownership
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.owner_id == current_user.id
+    ).first()
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Update allowed fields
+    if "confidence_threshold" in settings_data:
+        threshold = settings_data["confidence_threshold"]
+        if 0.0 <= threshold <= 1.0:
+            project.confidence_threshold = threshold
+    
+    if "auto_approve_threshold" in settings_data:
+        threshold = settings_data["auto_approve_threshold"]
+        if 0.0 <= threshold <= 1.0:
+            project.auto_approve_threshold = threshold
+    
+    if "guidelines" in settings_data:
+        project.guidelines = settings_data["guidelines"]
+    
+    if "status" in settings_data:
+        new_status = settings_data["status"]
+        if new_status in [s.value for s in ProjectStatus]:
+            project.status = ProjectStatus(new_status)
+    
+    project.updated_at = datetime.utcnow()
+    db.commit()
+    
+    return {
+        "message": "Project settings updated successfully",
+        "project_id": project_id,
+        "updated_settings": {
+            "confidence_threshold": project.confidence_threshold,
+            "auto_approve_threshold": project.auto_approve_threshold,
+            "status": project.status.value,
+            "updated_at": project.updated_at
+        }
+    }
+
+@router.get("/{project_id}/files")
+def list_project_files(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    status: Optional[str] = Query(None),
+    limit: int = Query(default=50, le=200),
+    offset: int = Query(default=0, ge=0)
+):
+    """List files in a project"""
+    
+    # Verify project access
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Check access permissions (owner or team member)
+    has_access = (project.owner_id == current_user.id) or db.query(ProjectAssignment).filter(
+        ProjectAssignment.project_id == project_id,
+        ProjectAssignment.user_id == current_user.id
+    ).first()
+    
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Build query
+    query = db.query(FileModel).filter(FileModel.project_id == project_id)
+    
+    if status:
+        query = query.filter(FileModel.status == status)
+    
+    files = query.order_by(FileModel.created_at.desc()).offset(offset).limit(limit).all()
+    
+    # Format response
+    files_data = []
+    for file in files:
+        files_data.append({
+            "id": file.id,
+            "filename": file.filename,
+            "file_size": file.file_size,
+            "file_type": file.file_type,
+            "status": file.status,
+            "created_at": file.created_at,
+            "has_results": len(file.results) > 0 if hasattr(file, 'results') else False
+        })
+    
+    return {
+        "project_id": project_id,
+        "files": files_data,
+        "total_count": len(files_data),
+        "filters": {"status": status} if status else {}
+    }
+
+@router.delete("/{project_id}")
+def delete_project(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a project (owner only)"""
+    
+    # Verify project ownership
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.owner_id == current_user.id
+    ).first()
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Archive instead of hard delete
+    project.status = ProjectStatus.ARCHIVED
+    project.updated_at = datetime.utcnow()
+    db.commit()
+    
+    return {
+        "message": "Project archived successfully",
+        "project_id": project_id,
+        "status": "archived"
     } 

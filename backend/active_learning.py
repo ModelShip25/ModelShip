@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 import json
 from collections import Counter
 import math
+import random
 
 router = APIRouter(prefix="/api/active-learning", tags=["active_learning"])
 
@@ -27,7 +28,8 @@ class ActiveLearningEngine:
             "margin": self._margin_sampling, 
             "entropy": self._entropy_sampling,
             "diverse": self._diversity_sampling,
-            "disagreement": self._disagreement_sampling
+            "disagreement": self._disagreement_sampling,
+            "random": self._random_sampling
         }
     
     def _uncertainty_sampling(self, results: List[Result], n_samples: int) -> List[int]:
@@ -174,6 +176,13 @@ class ActiveLearningEngine:
         disagreement_scores.sort(key=lambda x: x[1], reverse=True)
         
         return [idx for idx, _ in disagreement_scores[:n_samples]]
+    
+    def _random_sampling(self, results: List[Result], n_samples: int) -> List[int]:
+        """
+        Select samples randomly
+        Useful for initial exploration or when no specific strategy is available
+        """
+        return random.sample(range(len(results)), n_samples)
     
     def select_samples_for_review(
         self, 

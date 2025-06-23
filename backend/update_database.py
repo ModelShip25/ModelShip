@@ -7,6 +7,13 @@ import sqlite3
 import os
 from datetime import datetime
 import logging
+from sqlalchemy import create_engine
+from database import Base, DATABASE_URL
+from models import *  # Import all existing models
+
+# Import Phase 2 models
+from data_versioning import DatasetVersion, AnnotationSnapshot
+from gold_standard_testing import GoldStandardSample, GoldStandardTest
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -288,6 +295,29 @@ def verify_migration():
         if conn:
             conn.close()
 
+def create_all_tables():
+    """Create all database tables including Phase 2 additions"""
+    engine = create_engine(DATABASE_URL)
+    
+    # Create all tables
+    Base.metadata.create_all(bind=engine)
+    
+    print("✅ All Phase 1 + Phase 2 database tables created successfully!")
+    print("\nPhase 1 Tables:")
+    print("- users")
+    print("- organizations") 
+    print("- projects")
+    print("- jobs")
+    print("- results")
+    print("- reviews")
+    print("- user_organizations")
+    
+    print("\nPhase 2 Tables:")
+    print("- dataset_versions")
+    print("- annotation_snapshots")
+    print("- gold_standard_samples")
+    print("- gold_standard_tests")
+
 if __name__ == "__main__":
     print("ModelShip Database Migration Tool")
     print("="*50)
@@ -314,4 +344,7 @@ if __name__ == "__main__":
         else:
             print("\n❌ Migration verification failed!")
     else:
-        print("\n❌ Database migration failed!") 
+        print("\n❌ Database migration failed!")
+
+    # Create all tables
+    create_all_tables() 
