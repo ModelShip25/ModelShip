@@ -75,7 +75,7 @@ class Project(Base):
     guidelines = Column(Text, nullable=True)
     
     # Ownership and organization
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Allow null for guest projects
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
     
     # Progress tracking
@@ -142,7 +142,7 @@ class File(Base):
     __tablename__ = "files"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Allow null for guest uploads
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
     filename = Column(String(255), nullable=False)
     file_path = Column(String(500), nullable=False)
@@ -165,7 +165,7 @@ class Job(Base):
     __tablename__ = "jobs"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Allow null for guest jobs
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
     job_type = Column(String(50), nullable=False)  # 'image' or 'text'
     status = Column(String(50), default="processing")  # 'queued', 'processing', 'completed', 'failed'
@@ -225,6 +225,30 @@ class Result(Base):
     job = relationship("Job", back_populates="results")
     file = relationship("File", back_populates="results")
     reviewer = relationship("User", foreign_keys=[reviewed_by])
+
+class Review(Base):
+    __tablename__ = "reviews"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    result_id = Column(Integer, ForeignKey("results.id"), nullable=False)
+    reviewer_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    # Review details
+    action = Column(String(50), nullable=False)  # 'approve', 'reject', 'modify'
+    original_label = Column(String(255))
+    corrected_label = Column(String(255), nullable=True)
+    confidence_score = Column(Float, nullable=True)
+    
+    # Review metadata
+    review_time_seconds = Column(Float, nullable=True)
+    notes = Column(Text, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    result = relationship("Result")
+    reviewer = relationship("User", foreign_keys=[reviewer_id])
 
 class Analytics(Base):
     __tablename__ = "analytics"

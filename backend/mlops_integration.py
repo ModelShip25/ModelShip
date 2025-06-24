@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from sqlalchemy.orm import Session
 from database import get_db
 from models import Project, Job, Result
@@ -519,4 +519,21 @@ async def get_training_status(platform: str, job_id: str):
         "job_id": job_id,
         "training_status": "running",
         "message": "Status tracking will be implemented based on platform APIs"
+    }
+
+@router.get("/status")
+async def get_mlops_status():
+    """Get MLOps integration status"""
+    return {
+        "status": "available",
+        "message": "MLOps integration endpoints",
+        "features": ["model_versioning", "deployment_tracking", "performance_monitoring"]
+    }
+
+@router.get("/models")
+async def list_models():
+    """List available models"""
+    return {
+        "models": [],
+        "message": "MLOps model management - coming soon"
     } 

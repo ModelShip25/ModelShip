@@ -3,7 +3,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from database import get_db
 from models import User, Job, Result
-from auth import get_current_user
+from auth import get_current_user, get_optional_user
 import csv
 import json
 import os
@@ -175,7 +175,7 @@ class MLExportService:
         os.makedirs(dataset_dir, exist_ok=True)
         
         # Filter successful results
-        successful_results = [r for r in results in results if r.status == "success" and r.predicted_label]
+        successful_results = [r for r in results if r.status == "success" and r.predicted_label]
         
         # Prepare dataset in Hugging Face format
         dataset_data = []
@@ -668,7 +668,7 @@ export_service = ExportService()  # Legacy compatibility
 def create_ml_export(
     job_id: int,
     format_type: str = Query(..., description="Export format: tensorflow, pytorch, huggingface, coco"),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db),
     train_split: float = Query(0.7, description="Training split ratio (TensorFlow only)"),
     val_split: float = Query(0.2, description="Validation split ratio (TensorFlow only)"),
@@ -729,7 +729,7 @@ def create_export(
     export_format: str = "csv",
     include_confidence: bool = True,
     confidence_threshold: Optional[float] = None,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Create export file for job results"""
@@ -782,7 +782,7 @@ def create_export(
 @router.get("/download/{filename}")
 def download_export(
     filename: str,
-    current_user: User = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_optional_user)
 ):
     """Download an export file"""
     

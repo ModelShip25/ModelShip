@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks
 from sqlalchemy.orm import Session
 from database import get_db
 from models import User, Project, Job, Result, File
-from auth import get_current_user
+from auth import get_current_user, get_optional_user
 from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
 import logging
@@ -268,7 +268,7 @@ active_learning_engine = ActiveLearningEngine()
 @router.post("/suggest-samples/{job_id}")
 async def suggest_samples_for_review(
     job_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db),
     strategy: str = Query("uncertainty", description="Sampling strategy"),
     n_samples: int = Query(10, ge=1, le=100),
@@ -469,7 +469,7 @@ async def get_active_learning_strategies():
 @router.post("/analyze-effectiveness/{job_id}")
 async def analyze_active_learning_effectiveness(
     job_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db),
     comparison_days: int = Query(7, ge=1, le=30)
 ):

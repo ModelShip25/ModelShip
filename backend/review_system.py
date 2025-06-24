@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.orm import Session
 from database import get_db
 from models import User, Job, Result, File, Project, UserRole
-from auth import get_current_user
+from auth import get_current_user, get_optional_user
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import logging
@@ -127,7 +127,7 @@ review_service = ReviewService()
 @router.get("/jobs/{job_id}")
 async def get_review_interface_data(
     job_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db),
     confidence_filter: Optional[float] = Query(None, ge=0.0, le=1.0),
     status_filter: Optional[str] = Query(None),
@@ -232,7 +232,7 @@ async def get_review_interface_data(
 @router.post("/results/{result_id}/approve")
 async def approve_prediction(
     result_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Approve an AI prediction"""
@@ -267,7 +267,7 @@ async def approve_prediction(
 async def correct_prediction(
     result_id: int,
     correct_label: str,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Correct an AI prediction with the true label"""
@@ -304,7 +304,7 @@ async def correct_prediction(
 async def reject_prediction(
     result_id: int,
     reason: str,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Reject an AI prediction"""
@@ -340,7 +340,7 @@ async def reject_prediction(
 async def bulk_approve_high_confidence(
     job_id: int,
     confidence_threshold: float = Query(0.9, ge=0.0, le=1.0),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Bulk approve all high-confidence predictions"""
@@ -385,7 +385,7 @@ async def bulk_approve_high_confidence(
 @router.get("/suggestions/{result_id}")
 async def get_label_suggestions(
     result_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Get label suggestions for correction"""
@@ -425,7 +425,7 @@ async def get_label_suggestions(
 @router.get("/analytics/{job_id}")
 async def get_review_analytics(
     job_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Get analytics for review process"""
@@ -489,7 +489,7 @@ async def get_review_analytics(
 @router.get("/tasks/pending")
 def get_pending_review_tasks(
     project_id: int = Query(...),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db),
     limit: int = Query(default=20, le=50)
 ):
@@ -542,7 +542,7 @@ def get_pending_review_tasks(
 def submit_review(
     result_id: int,
     review_data: Dict[str, Any],
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Submit a review decision for a result"""
@@ -607,7 +607,7 @@ def submit_review(
 @router.get("/tasks/{result_id}")
 def get_review_task_details(
     result_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Get detailed information for a specific review task"""
@@ -655,7 +655,7 @@ def get_review_task_details(
 @router.get("/projects/{project_id}/stats")
 def get_project_review_stats(
     project_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Get review statistics for a project"""
@@ -714,7 +714,7 @@ def get_project_review_stats(
 def assign_review_tasks(
     project_id: int,
     assignment_data: Dict[str, Any],
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Assign review tasks to reviewers (admin only)"""
@@ -747,7 +747,7 @@ def assign_review_tasks(
 
 @router.get("/dashboard")
 def get_review_dashboard(
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Get review dashboard data for the current user"""

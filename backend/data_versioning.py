@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey, JSON, Float
 from sqlalchemy.ext.declarative import declarative_base
-from database import get_db, Base
+from database import get_db
+from database_base import Base
 from models import Project, Job, Result
 from typing import Dict, List, Any, Optional
 import logging
@@ -462,7 +463,7 @@ class DataVersioningService:
 versioning_service = DataVersioningService()
 
 # FastAPI Router
-router = APIRouter(prefix="/api/versioning", tags=["versioning"])
+router = APIRouter(prefix="/api/versioning", tags=["data_versioning"])
 
 @router.post("/create/{project_id}")
 async def create_version(
@@ -550,3 +551,20 @@ async def get_version_diff(
     except Exception as e:
         logger.error(f"Failed to get diff: {e}")
         raise HTTPException(status_code=400, detail=str(e)) 
+
+@router.get("/status")
+async def get_versioning_status():
+    """Get data versioning status"""
+    return {
+        "status": "available",
+        "message": "Data versioning endpoints",
+        "features": ["dataset_versions", "annotation_history", "rollback"]
+    }
+
+@router.get("/versions")
+async def list_versions():
+    """List data versions"""
+    return {
+        "versions": [],
+        "message": "Data versioning - coming soon"
+    } 

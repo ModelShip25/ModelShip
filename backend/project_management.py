@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks, U
 from sqlalchemy.orm import Session
 from database import get_db
 from models import User, Project, LabelSchema, ProjectAssignment, Organization, UserRole, ProjectStatus, LabelType, File as FileModel
-from auth import get_current_user
+from auth import get_optional_user  # Auth temporarily removed for development testing
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from pydantic import BaseModel
@@ -83,13 +83,12 @@ project_service = ProjectService()
 @router.post("/")
 async def create_project(
     project_data: ProjectCreate,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Create a new labeling project"""
     
     try:
-        # Create project
+        # Create project without authentication (development mode)
         project = Project(
             name=project_data.name,
             description=project_data.description,
@@ -98,24 +97,16 @@ async def create_project(
             auto_approve_threshold=project_data.auto_approve_threshold,
             guidelines=project_data.guidelines,
             deadline=project_data.deadline,
-            owner_id=current_user.id,
-            organization_id=current_user.organization_id,
-            status=ProjectStatus.DRAFT
+            owner_id=None,  # No owner during development
+            organization_id=None,
+            status=ProjectStatus.ACTIVE  # Start active for testing
         )
         
         db.add(project)
         db.commit()
         db.refresh(project)
         
-        # Create default assignment for project owner
-        owner_assignment = ProjectAssignment(
-            project_id=project.id,
-            user_id=current_user.id,
-            role=UserRole.ADMIN
-        )
-        
-        db.add(owner_assignment)
-        db.commit()
+        # Skip project assignments during development (no authentication)
         
         # Create default label schema
         default_labels = project_service.supported_project_types[project_data.project_type]["default_schema"]
@@ -131,7 +122,7 @@ async def create_project(
         db.add(label_schema)
         db.commit()
         
-        logger.info(f"Project created: {project.id} by user {current_user.id}")
+        logger.info(f"Project created: {project.id} (development mode - no auth)")
         
         return {
             "project_id": project.id,
@@ -150,7 +141,7 @@ async def create_project(
 @router.post("/create")
 async def create_project_alias(
     project_data: ProjectCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Create a new labeling project (alias for POST /)"""
@@ -196,7 +187,6 @@ async def create_test_project(project_data: ProjectCreate):
 
 @router.get("/")
 async def get_user_projects(
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     status: Optional[ProjectStatus] = Query(None),
     limit: int = Query(20, le=100),
@@ -205,10 +195,8 @@ async def get_user_projects(
     """Get all projects accessible to the current user"""
     
     try:
-        # Get projects where user is owner or assigned
-        query = db.query(Project).join(ProjectAssignment).filter(
-            ProjectAssignment.user_id == current_user.id
-        )
+        # Get all projects (development mode - no authentication)
+        query = db.query(Project)
         
         # Apply status filter
         if status:
@@ -221,11 +209,8 @@ async def get_user_projects(
         # Format response
         projects_data = []
         for project in projects:
-            # Get user's role in this project
-            assignment = db.query(ProjectAssignment).filter(
-                ProjectAssignment.project_id == project.id,
-                ProjectAssignment.user_id == current_user.id
-            ).first()
+            # No user role needed in development mode
+            user_role = "admin"  # Default role for testing
             
             # Calculate progress
             progress_percentage = 0
@@ -294,45 +279,57 @@ async def get_test_projects(
 @router.get("/{project_id}")
 async def get_project_details(
     project_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Get detailed information about a specific project"""
     
     try:
-        # Check if user has access to this project
-        assignment = db.query(ProjectAssignment).filter(
-            ProjectAssignment.project_id == project_id,
-            ProjectAssignment.user_id == current_user.id
-        ).first()
-        
-        if not assignment:
-            raise HTTPException(status_code=403, detail="Access denied to this project")
-        
         # Get project details
         project = db.query(Project).filter(Project.id == project_id).first()
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
         
+        # Check access permissions
+        user_role = "guest"
+        if current_user is not None:
+            # Check if user has access to this project
+            assignment = db.query(ProjectAssignment).filter(
+                ProjectAssignment.project_id == project_id,
+                ProjectAssignment.user_id == current_user.id
+            ).first()
+            
+            if assignment:
+                user_role = assignment.role
+            elif project.owner_id != current_user.id:
+                # If user is not assigned and not owner, deny access (unless it's a guest project)
+                if project.owner_id is not None:
+                    raise HTTPException(status_code=403, detail="Access denied to this project")
+        else:
+            # For unauthenticated users, only allow access to guest projects
+            if project.owner_id is not None:
+                raise HTTPException(status_code=403, detail="Authentication required for this project")
+        
         # Get label schemas
         label_schemas = db.query(LabelSchema).filter(LabelSchema.project_id == project_id).all()
         
-        # Get team assignments
-        assignments = db.query(ProjectAssignment).join(User).filter(
-            ProjectAssignment.project_id == project_id
-        ).all()
-        
+        # Get team assignments (only if project has team members)
         team_members = []
-        for assignment in assignments:
-            team_members.append({
-                "user_id": assignment.user.id,
-                "email": assignment.user.email,
-                "role": assignment.role,
-                "assigned_items": assignment.assigned_items,
-                "completed_items": assignment.completed_items,
-                "completion_rate": (assignment.completed_items / assignment.assigned_items * 100) 
-                                 if assignment.assigned_items > 0 else 0
-            })
+        if project.owner_id is not None:
+            assignments = db.query(ProjectAssignment).join(User).filter(
+                ProjectAssignment.project_id == project_id
+            ).all()
+            
+            for assignment in assignments:
+                team_members.append({
+                    "user_id": assignment.user.id,
+                    "email": assignment.user.email,
+                    "role": assignment.role,
+                    "assigned_items": assignment.assigned_items,
+                    "completed_items": assignment.completed_items,
+                    "completion_rate": (assignment.completed_items / assignment.assigned_items * 100) 
+                                     if assignment.assigned_items > 0 else 0
+                })
         
         # Calculate detailed progress
         progress_percentage = 0
@@ -374,7 +371,7 @@ async def get_project_details(
                 for schema in label_schemas
             ],
             "team": team_members,
-            "user_role": assignment.role
+            "user_role": user_role
         }
         
     except HTTPException:
@@ -387,7 +384,7 @@ async def get_project_details(
 async def update_project(
     project_id: int,
     project_data: ProjectUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Update project information"""
@@ -434,7 +431,7 @@ async def update_project(
 async def create_label_schema(
     project_id: int,
     schema_data: LabelSchemaCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Create a label schema for a project"""
@@ -486,7 +483,7 @@ async def create_label_schema(
 async def assign_user_to_project(
     project_id: int,
     assignment_data: ProjectAssignmentCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Assign a user to a project with specific role"""
@@ -546,7 +543,7 @@ async def assign_user_to_project(
 @router.get("/{project_id}/analytics")
 async def get_project_analytics(
     project_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db),
     days: int = Query(30, ge=1, le=365)
 ):
@@ -715,7 +712,7 @@ async def get_project_templates():
 async def upload_project_files(
     project_id: int,
     files: List[UploadFile] = File(...),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Upload files to a project dataset"""
@@ -806,7 +803,7 @@ async def upload_project_files(
 def invite_team_member(
     project_id: int,
     invitation_data: Dict[str, Any],
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Invite a team member to the project"""
@@ -866,7 +863,7 @@ def invite_team_member(
 def update_project_settings(
     project_id: int,
     settings_data: Dict[str, Any],
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Update project settings"""
@@ -916,7 +913,7 @@ def update_project_settings(
 @router.get("/{project_id}/files")
 def list_project_files(
     project_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db),
     status: Optional[str] = Query(None),
     limit: int = Query(default=50, le=200),
@@ -969,7 +966,7 @@ def list_project_files(
 @router.delete("/{project_id}")
 def delete_project(
     project_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Delete a project (owner only)"""
@@ -992,4 +989,20 @@ def delete_project(
         "message": "Project archived successfully",
         "project_id": project_id,
         "status": "archived"
+    }
+
+# Simple test endpoint for debugging
+@router.get("/test")
+async def test_endpoint():
+    """Simple test endpoint without any dependencies"""
+    return {"message": "Test endpoint working", "status": "ok"}
+
+@router.post("/test-create")
+async def test_create_project():
+    """Simple test project creation without any dependencies"""
+    return {
+        "project_id": 999,
+        "name": "Test Project",
+        "status": "active",
+        "message": "Test project created successfully"
     } 

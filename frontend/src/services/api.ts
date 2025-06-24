@@ -9,63 +9,47 @@ export const apiClient = axios.create({
   },
 });
 
-// Add auth token to requests
+// Add auth token to requests (auth disabled for development)
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('authToken');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  // Auth temporarily disabled for development
   return config;
 });
 
-// Handle auth errors
+// Handle auth errors (auth disabled for development)
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('authToken');
-      window.location.href = '/login';
-    }
+    // Auth temporarily disabled - don't redirect on 401
     return Promise.reject(error);
   }
 );
 
-// Auth API
+// Auth API (disabled for development)
 export const authAPI = {
   login: async (email: string, password: string) => {
-    const formData = new FormData();
-    formData.append('username', email);
-    formData.append('password', password);
-    
-    const response = await apiClient.post('/api/auth/login', formData, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-    });
-    return response.data;
+    // Auth disabled for development
+    return { token: 'dev-token', user: { email } };
   },
 
   register: async (userData: { email: string; password: string; full_name: string }) => {
-    const response = await apiClient.post('/api/auth/register', userData);
-    return response.data;
+    // Auth disabled for development
+    return { message: 'Registration disabled in development mode' };
   },
 
   getCurrentUser: async () => {
-    const response = await apiClient.get('/api/auth/me');
-    return response.data;
+    // Auth disabled for development
+    return { id: 1, email: 'dev@example.com', name: 'Development User' };
   },
 
   logout: () => {
-    localStorage.removeItem('authToken');
+    // Auth disabled for development
   }
 };
 
-// Projects API
-export const projectsAPI = {
-  getProjects: async (filters?: { status?: string; type?: string }) => {
-    const params = new URLSearchParams();
-    if (filters?.status) params.append('status', filters.status);
-    if (filters?.type) params.append('project_type', filters.type);
-    
-    const response = await apiClient.get(`/api/projects/?${params}`);
+// ✅ NEW: Simple Projects API (file-based storage)
+export const simpleProjectsAPI = {
+  getProjects: async () => {
+    const response = await apiClient.get('/api/simple-projects/');
     return response.data;
   },
 
@@ -74,24 +58,74 @@ export const projectsAPI = {
     description?: string;
     project_type: string;
     confidence_threshold?: number;
+    auto_approve_threshold?: number;
+    guidelines?: string;
   }) => {
-    const response = await apiClient.post('/api/projects/', projectData);
+    const response = await apiClient.post('/api/simple-projects/', projectData);
+    return response.data;
+  },
+
+  createTestProject: async () => {
+    const response = await apiClient.post('/api/simple-projects/test-create');
     return response.data;
   },
 
   getProject: async (projectId: number) => {
-    const response = await apiClient.get(`/api/projects/${projectId}`);
+    const response = await apiClient.get(`/api/simple-projects/${projectId}`);
     return response.data;
   },
 
   updateProject: async (projectId: number, updates: any) => {
-    const response = await apiClient.put(`/api/projects/${projectId}`, updates);
+    const response = await apiClient.put(`/api/simple-projects/${projectId}`, updates);
     return response.data;
   },
 
   deleteProject: async (projectId: number) => {
-    const response = await apiClient.delete(`/api/projects/${projectId}`);
+    const response = await apiClient.delete(`/api/simple-projects/${projectId}`);
     return response.data;
+  },
+
+  getSupportedTypes: async () => {
+    const response = await apiClient.get('/api/simple-projects/types/supported');
+    return response.data;
+  },
+
+  getStorageStats: async () => {
+    const response = await apiClient.get('/api/simple-projects/stats/storage');
+    return response.data;
+  }
+};
+
+// Projects API (legacy - updated to use simple projects)
+export const projectsAPI = {
+  getProjects: async (filters?: { status?: string; type?: string }) => {
+    // Use simple projects API
+    return await simpleProjectsAPI.getProjects();
+  },
+
+  createProject: async (projectData: {
+    name: string;
+    description?: string;
+    project_type: string;
+    confidence_threshold?: number;
+  }) => {
+    // Use simple projects API
+    return await simpleProjectsAPI.createProject(projectData);
+  },
+
+  getProject: async (projectId: number) => {
+    // Use simple projects API
+    return await simpleProjectsAPI.getProject(projectId);
+  },
+
+  updateProject: async (projectId: number, updates: any) => {
+    // Use simple projects API
+    return await simpleProjectsAPI.updateProject(projectId, updates);
+  },
+
+  deleteProject: async (projectId: number) => {
+    // Use simple projects API
+    return await simpleProjectsAPI.deleteProject(projectId);
   }
 };
 
@@ -204,38 +238,18 @@ export const reviewAPI = {
   }
 };
 
-// Analytics API
-export const analyticsAPI = {
-  getUserAnalytics: async (timeframe?: string) => {
-    const params = timeframe ? `?timeframe=${timeframe}` : '';
-    const response = await apiClient.get(`/api/analytics/user${params}`);
-    return response.data;
-  },
-
-  getProjectAnalytics: async (projectId: number, timeframe?: string) => {
-    const params = timeframe ? `?timeframe=${timeframe}` : '';
-    const response = await apiClient.get(`/api/analytics/project/${projectId}${params}`);
-    return response.data;
-  },
-
-  getPlatformOverview: async () => {
-    const response = await apiClient.get('/api/analytics/platform-overview');
-    return response.data;
-  }
-};
-
 // Export API
 export const exportAPI = {
-  exportProject: async (projectId: number, format: string, options?: any) => {
-    const response = await apiClient.post(`/api/export/project/${projectId}`, {
-      format,
-      ...options
+  exportResults: async (jobId: number, format: string = 'json') => {
+    const response = await apiClient.post(`/api/export/create/${jobId}`, {
+      export_format: format,
+      include_confidence: true
     });
     return response.data;
   },
 
-  downloadExport: async (exportId: string) => {
-    const response = await apiClient.get(`/api/export/download/${exportId}`, {
+  downloadExport: async (filename: string) => {
+    const response = await apiClient.get(`/api/export/download/${filename}`, {
       responseType: 'blob'
     });
     return response.data;

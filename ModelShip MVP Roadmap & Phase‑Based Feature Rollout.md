@@ -96,7 +96,5 @@ A structured, phase‑based plan for implementing the core MVP features and reco
 ---
 
 **Next Steps:**
-
-* Import into Cursor AI as a phased backlog.
 * Flesh out user stories and acceptance criteria per phase.
 * Schedule cross‑functional sprints aligned to each phase.

@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey, Float, JSON
-from database import get_db, Base
+from database import get_db
+from database_base import Base
 from models import Project, Job, Result, User
 from typing import Dict, List, Any, Optional
 import logging
@@ -678,9 +679,9 @@ async def get_gold_samples(
 async def inject_gold_samples(
     project_id: int,
     job_id: int,
+    background_tasks: BackgroundTasks,
     injection_rate: str = "medium",
     total_samples: int = 100,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
     """Inject gold standard samples into annotation job"""

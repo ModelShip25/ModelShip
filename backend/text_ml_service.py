@@ -7,8 +7,19 @@ import uuid
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import re
+from enum import Enum
 
 logger = logging.getLogger(__name__)
+
+class TextClassificationType(str, Enum):
+    SENTIMENT = "sentiment"
+    EMOTION = "emotion"
+    TOPIC = "topic"
+    SPAM = "spam"
+    TOXICITY = "toxicity"
+    LANGUAGE = "language"
+    NER = "ner"
+    NAMED_ENTITY = "named_entity"
 
 class TextMLService:
     def __init__(self):

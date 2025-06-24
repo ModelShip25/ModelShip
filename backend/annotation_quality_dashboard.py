@@ -171,7 +171,7 @@ class AnnotationQualityDashboard:
             
             performance = {
                 "user_id": reviewer_id,
-                "username": user.username if user else f"User_{reviewer_id}",
+                "username": user.email if user else f"User_{reviewer_id}",
                 "total_reviews": stats["total_reviews"],
                 "approved_rate": round(stats["approved"] / stats["total_reviews"] * 100, 2),
                 "rejected_rate": round(stats["rejected"] / stats["total_reviews"] * 100, 2),

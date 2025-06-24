@@ -1,238 +1,286 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { 
-  BeakerIcon, 
+  CloudArrowUpIcon,
   PhotoIcon, 
   DocumentTextIcon, 
   ChartBarIcon,
   ArrowRightIcon,
   SparklesIcon,
   ClockIcon,
-  ShieldCheckIcon
+  ShieldCheckIcon,
+  CpuChipIcon,
+  CheckCircleIcon
 } from '@heroicons/react/24/outline';
 
 const Landing: React.FC = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center">
-              <SparklesIcon className="h-8 w-8 text-blue-600 mr-2" />
-              <h1 className="text-2xl font-bold text-gray-900">ModelShip</h1>
-            </div>
-            <div className="flex space-x-4">
+    <div className="min-h-screen">
+      {/* Hero Section */}
+      <div className="bg-gradient-to-r from-blue-600 to-purple-700 text-white py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h1 className="text-5xl font-bold mb-6">
+              AI-Powered Auto-Labeling Platform
+            </h1>
+            <p className="text-xl mb-8 max-w-3xl mx-auto">
+              Upload your images or text files and get professional-quality labels with AI classification and human review.
+            </p>
+            <div className="flex justify-center space-x-4">
               <Link
-                to="/test"
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+                to="/dashboard"
+                className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
               >
-                <BeakerIcon className="h-5 w-5 mr-2" />
-                Try Demo
+                Get Started Free
               </Link>
               <Link
                 to="/login"
-                className="border border-blue-600 text-blue-600 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors"
+                className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors"
               >
-                Login
+                Sign In
               </Link>
             </div>
+            <p className="text-sm text-blue-100 mt-4">
+              No credit card required • Start labeling in minutes
+            </p>
           </div>
         </div>
-      </header>
+      </div>
 
-      <section className="py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-5xl font-bold text-gray-900 mb-6">
-            AI-Powered Auto-Labeling Platform
-          </h1>
-          <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            Accelerate your machine learning projects with intelligent data labeling. 
-            Reduce manual work by 90% while maintaining high accuracy.
-          </p>
-          <div className="flex justify-center space-x-4">
-            <Link
-              to="/test"
-              className="bg-blue-600 text-white px-8 py-4 rounded-lg text-lg font-medium hover:bg-blue-700 transition-colors flex items-center"
-            >
-              <BeakerIcon className="h-6 w-6 mr-2" />
-              Test Our AI Models
-              <ArrowRightIcon className="h-5 w-5 ml-2" />
-            </Link>
-            <button className="border border-gray-300 text-gray-700 px-8 py-4 rounded-lg text-lg font-medium hover:bg-gray-50 transition-colors">
-              Watch Demo
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section className="py-16 bg-white">
+      {/* How It Works */}
+      <div className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
+          <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Powerful Auto-Labeling Features
+              How It Works
             </h2>
             <p className="text-lg text-gray-600">
-              Everything you need to label your data efficiently and accurately
+              From upload to export in 3 simple steps
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="text-center p-6 rounded-lg border border-gray-200 hover:shadow-lg transition-shadow">
-              <div className="bg-blue-100 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <PhotoIcon className="h-8 w-8 text-blue-600" />
+          <div className="grid md:grid-cols-3 gap-8">
+            {/* Step 1 */}
+            <div className="text-center">
+              <div className="bg-blue-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                <CloudArrowUpIcon className="w-8 h-8 text-blue-600" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Image Classification</h3>
-              <p className="text-gray-600 mb-4">
-                ResNet-50 model with 1000+ categories. Perfect for product catalogs, 
-                medical imaging, and content moderation.
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                1. Upload Your Files
+              </h3>
+              <p className="text-gray-600">
+                Drag and drop your images or text files. We support JPG, PNG, GIF, TXT, and CSV formats.
               </p>
-              <ul className="text-sm text-gray-500 space-y-1">
-                <li>• 76%+ accuracy</li>
-                <li>• Sub-second processing</li>
-                <li>• Confidence scoring</li>
-              </ul>
             </div>
 
-            <div className="text-center p-6 rounded-lg border border-gray-200 hover:shadow-lg transition-shadow">
-              <div className="bg-green-100 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <DocumentTextIcon className="h-8 w-8 text-green-600" />
+            {/* Step 2 */}
+            <div className="text-center">
+              <div className="bg-green-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                <CpuChipIcon className="w-8 h-8 text-green-600" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Text Analysis</h3>
-              <p className="text-gray-600 mb-4">
-                Sentiment analysis, topic detection, spam filtering, and language 
-                identification for all your text data.
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                2. AI Classification
+              </h3>
+              <p className="text-gray-600">
+                Our advanced AI models automatically classify your content with high accuracy and confidence scores.
               </p>
-              <ul className="text-sm text-gray-500 space-y-1">
-                <li>• Multi-language support</li>
-                <li>• Custom categories</li>
-                <li>• Real-time processing</li>
-              </ul>
             </div>
 
-            <div className="text-center p-6 rounded-lg border border-gray-200 hover:shadow-lg transition-shadow">
-              <div className="bg-purple-100 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <ChartBarIcon className="h-8 w-8 text-purple-600" />
+            {/* Step 3 */}
+            <div className="text-center">
+              <div className="bg-purple-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                <ArrowRightIcon className="w-8 h-8 text-purple-600" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Batch Processing</h3>
-              <p className="text-gray-600 mb-4">
-                Process thousands of files efficiently with our optimized batch 
-                processing system and progress tracking.
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                3. Review & Export
+              </h3>
+              <p className="text-gray-600">
+                Review results, make corrections, and export in your preferred format (JSON, CSV, COCO).
               </p>
-              <ul className="text-sm text-gray-500 space-y-1">
-                <li>• Parallel processing</li>
-                <li>• Progress monitoring</li>
-                <li>• Error handling</li>
-              </ul>
             </div>
           </div>
         </div>
-      </section>
+      </div>
 
-      <section className="py-16 bg-gray-50">
+      {/* Features */}
+      <div className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
+          <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Why Choose ModelShip?
+              Powerful Features
             </h2>
+            <p className="text-lg text-gray-600">
+              Everything you need for professional data labeling
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="bg-blue-100 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <ClockIcon className="h-8 w-8 text-blue-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">90% Faster</h3>
-              <p className="text-gray-600">
-                Reduce manual labeling time from days to hours with our intelligent auto-labeling
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {/* Image Classification */}
+            <div className="bg-white rounded-lg shadow-sm p-6 border">
+              <PhotoIcon className="w-8 h-8 text-purple-500 mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Image Classification</h3>
+              <p className="text-gray-600 text-sm">
+                Advanced computer vision models for object detection, scene classification, and content moderation.
               </p>
             </div>
 
-            <div className="text-center">
-              <div className="bg-green-100 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <ShieldCheckIcon className="h-8 w-8 text-green-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">High Accuracy</h3>
-              <p className="text-gray-600">
-                State-of-the-art models with confidence calibration for reliable results
+            {/* Text Classification */}
+            <div className="bg-white rounded-lg shadow-sm p-6 border">
+              <DocumentTextIcon className="w-8 h-8 text-green-500 mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Text Classification</h3>
+              <p className="text-gray-600 text-sm">
+                Sentiment analysis, topic classification, spam detection, and custom text categorization.
               </p>
             </div>
 
-            <div className="text-center">
-              <div className="bg-purple-100 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <SparklesIcon className="h-8 w-8 text-purple-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Easy to Use</h3>
-              <p className="text-gray-600">
-                Simple drag-and-drop interface. No ML expertise required to get started
+            {/* Human Review */}
+            <div className="bg-white rounded-lg shadow-sm p-6 border">
+              <CheckCircleIcon className="w-8 h-8 text-blue-500 mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Human Review</h3>
+              <p className="text-gray-600 text-sm">
+                Built-in review system to validate AI predictions and ensure the highest quality labels.
+              </p>
+            </div>
+
+            {/* Batch Processing */}
+            <div className="bg-white rounded-lg shadow-sm p-6 border">
+              <ClockIcon className="w-8 h-8 text-yellow-500 mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Batch Processing</h3>
+              <p className="text-gray-600 text-sm">
+                Process hundreds of files at once with automated workflows and progress tracking.
+              </p>
+            </div>
+
+            {/* Multiple Formats */}
+            <div className="bg-white rounded-lg shadow-sm p-6 border">
+              <ChartBarIcon className="w-8 h-8 text-indigo-500 mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Export Flexibility</h3>
+              <p className="text-gray-600 text-sm">
+                Export in JSON, CSV, COCO, YOLO, or custom formats compatible with your ML pipeline.
+              </p>
+            </div>
+
+            {/* Security */}
+            <div className="bg-white rounded-lg shadow-sm p-6 border">
+              <ShieldCheckIcon className="w-8 h-8 text-red-500 mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Secure & Private</h3>
+              <p className="text-gray-600 text-sm">
+                Enterprise-grade security with encrypted storage and complete data privacy protection.
               </p>
             </div>
           </div>
         </div>
-      </section>
+      </div>
 
-      <section className="py-16 bg-blue-600">
+      {/* Pricing Preview */}
+      <div className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+              Simple Pricing
+            </h2>
+            <p className="text-lg text-gray-600">
+              Start free, scale as you grow
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+            {/* Free Tier */}
+            <div className="bg-gray-50 rounded-lg p-6 border">
+              <div className="text-center">
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">Free</h3>
+                <div className="text-3xl font-bold text-gray-900 mb-4">$0</div>
+                <ul className="text-sm text-gray-600 space-y-2 mb-6">
+                  <li>• 100 classifications/month</li>
+                  <li>• Basic AI models</li>
+                  <li>• Standard export formats</li>
+                  <li>• Community support</li>
+                </ul>
+                <Link
+                  to="/dashboard"
+                  className="block w-full bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-medium text-center"
+                >
+                  Get Started
+                </Link>
+              </div>
+            </div>
+
+            {/* Pro Tier */}
+            <div className="bg-blue-50 rounded-lg p-6 border-2 border-blue-200 relative">
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-medium">
+                  Most Popular
+                </span>
+              </div>
+              <div className="text-center">
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">Pro</h3>
+                <div className="text-3xl font-bold text-gray-900 mb-4">$29<span className="text-lg text-gray-600">/mo</span></div>
+                <ul className="text-sm text-gray-600 space-y-2 mb-6">
+                  <li>• 10,000 classifications/month</li>
+                  <li>• Advanced AI models</li>
+                  <li>• All export formats</li>
+                  <li>• Priority support</li>
+                  <li>• API access</li>
+                </ul>
+                <Link
+                  to="/login"
+                  className="block w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-center"
+                >
+                  Start Pro Trial
+                </Link>
+              </div>
+            </div>
+
+            {/* Enterprise Tier */}
+            <div className="bg-gray-50 rounded-lg p-6 border">
+              <div className="text-center">
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">Enterprise</h3>
+                <div className="text-3xl font-bold text-gray-900 mb-4">Custom</div>
+                <ul className="text-sm text-gray-600 space-y-2 mb-6">
+                  <li>• Unlimited classifications</li>
+                  <li>• Custom AI models</li>
+                  <li>• White-label solution</li>
+                  <li>• Dedicated support</li>
+                  <li>• On-premise deployment</li>
+                </ul>
+                <Link
+                  to="/login"
+                  className="block w-full bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-medium text-center"
+                >
+                  Contact Sales
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* CTA Section */}
+      <div className="py-16 bg-blue-600">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl font-bold text-white mb-4">
-            Ready to Try ModelShip?
+            Ready to Start Labeling?
           </h2>
           <p className="text-xl text-blue-100 mb-8">
-            Test our AI models with your own data - no signup required
+            Join thousands of teams using ModelShip to accelerate their AI projects
           </p>
-          <Link
-            to="/test"
-            className="bg-white text-blue-600 px-8 py-4 rounded-lg text-lg font-medium hover:bg-gray-100 transition-colors inline-flex items-center"
-          >
-            <BeakerIcon className="h-6 w-6 mr-2" />
-            Start Testing Now
-            <ArrowRightIcon className="h-5 w-5 ml-2" />
-          </Link>
-        </div>
-      </section>
-
-      <footer className="bg-gray-900 text-white py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <div>
-              <div className="flex items-center mb-4">
-                <SparklesIcon className="h-8 w-8 text-blue-400 mr-2" />
-                <h3 className="text-xl font-bold">ModelShip</h3>
-              </div>
-              <p className="text-gray-400">
-                AI-powered auto-labeling platform for accelerating machine learning projects.
-              </p>
-            </div>
-            <div>
-              <h4 className="text-lg font-semibold mb-4">Product</h4>
-              <ul className="space-y-2 text-gray-400">
-                <li><Link to="/test" className="hover:text-white">Try Demo</Link></li>
-                <li><button className="hover:text-white text-left">Features</button></li>
-                <li><button className="hover:text-white text-left">Pricing</button></li>
-                <li><button className="hover:text-white text-left">API Docs</button></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="text-lg font-semibold mb-4">Company</h4>
-              <ul className="space-y-2 text-gray-400">
-                <li><button className="hover:text-white text-left">About</button></li>
-                <li><button className="hover:text-white text-left">Blog</button></li>
-                <li><button className="hover:text-white text-left">Careers</button></li>
-                <li><button className="hover:text-white text-left">Contact</button></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="text-lg font-semibold mb-4">Support</h4>
-              <ul className="space-y-2 text-gray-400">
-                <li><button className="hover:text-white text-left">Help Center</button></li>
-                <li><button className="hover:text-white text-left">Community</button></li>
-                <li><button className="hover:text-white text-left">Status</button></li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-            <p>&copy; 2024 ModelShip. All rights reserved.</p>
+          <div className="flex justify-center space-x-4">
+            <Link
+              to="/dashboard"
+              className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors inline-flex items-center"
+            >
+              <SparklesIcon className="w-5 h-5 mr-2" />
+              Start Free Today
+            </Link>
+            <Link
+              to="/login"
+              className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors"
+            >
+              View Demo
+            </Link>
           </div>
         </div>
-      </footer>
+      </div>
     </div>
   );
 };

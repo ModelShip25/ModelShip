@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
 from database import get_db
 from models import User, Project, Job, Result, File, Analytics, ProjectAssignment, UserRole
-from auth import get_current_user
+from auth import get_current_user, get_optional_user
 from typing import List, Dict, Any, Optional
 import numpy as np
 from datetime import datetime, timedelta
@@ -368,7 +368,7 @@ def get_analytics_dashboard(db: Session = Depends(get_db)):
 
 @router.get("/user-dashboard")
 async def get_user_dashboard(
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     dashboard: AnalyticsDashboard = Depends(get_analytics_dashboard),
     days: int = Query(30, ge=1, le=365)
 ):
@@ -396,7 +396,7 @@ async def get_user_dashboard(
 @router.get("/project-dashboard/{project_id}")
 async def get_project_dashboard(
     project_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     dashboard: AnalyticsDashboard = Depends(get_analytics_dashboard),
     db: Session = Depends(get_db),
     days: int = Query(30, ge=1, le=365)
@@ -435,7 +435,7 @@ async def get_project_dashboard(
 
 @router.get("/platform-overview")
 async def get_platform_dashboard(
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     dashboard: AnalyticsDashboard = Depends(get_analytics_dashboard),
     days: int = Query(30, ge=1, le=365)
 ):
@@ -464,7 +464,7 @@ async def get_platform_dashboard(
 @router.get("/cost-savings/{project_id}")
 async def calculate_cost_savings(
     project_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db),
     manual_cost_per_label: float = Query(0.10, ge=0.01, le=10.0),
     auto_cost_per_label: float = Query(0.01, ge=0.001, le=1.0)
@@ -544,7 +544,7 @@ async def calculate_cost_savings(
 @router.get("/quality-metrics/{project_id}")
 async def get_quality_metrics(
     project_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db),
     days: int = Query(30, ge=1, le=365)
 ):

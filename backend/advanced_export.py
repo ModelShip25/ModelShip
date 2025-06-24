@@ -3,7 +3,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from database import get_db
 from models import User, Job, Result, Project, File as FileModel, ProjectAssignment
-from auth import get_current_user
+from auth import get_current_user, get_optional_user
 import json
 import os
 import zipfile
@@ -303,7 +303,7 @@ def export_project_results(
     project_id: int,
     export_config: Dict[str, Any],
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Export project results in specified format"""
@@ -413,7 +413,7 @@ def export_project_results(
 async def download_export(
     export_id: str,
     filename: str,
-    current_user: User = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_optional_user)
 ):
     """Download exported file"""
     
@@ -445,7 +445,7 @@ def export_job_results(
     job_id: int,
     export_format: str = Query(default="json"),
     include_metadata: bool = Query(default=True),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Export results from a specific job"""
@@ -492,7 +492,7 @@ def export_job_results(
 @router.get("/project/{project_id}/summary")
 def get_export_summary(
     project_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Get export summary and statistics for a project"""

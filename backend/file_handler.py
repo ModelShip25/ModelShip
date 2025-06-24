@@ -2,7 +2,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 from database import get_db
 from models import User, File as FileModel
-from auth import get_current_user
+from auth import get_current_user, get_optional_user
 import os
 import shutil
 from typing import List, Dict, Any, Optional, Union
@@ -454,7 +454,7 @@ def allowed_file(filename: str) -> bool:
 async def upload_file(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_optional_user)
 ):
     # Validate file type
     if not allowed_file(file.filename):
@@ -478,31 +478,34 @@ async def upload_file(
     with open(file_path, "wb") as f:
         f.write(contents)
     
-    # Save file info to database
-    db_file = FileModel(
-        user_id=current_user.id,
-        filename=file.filename,
-        file_path=file_path,
-        file_size=len(contents),
-        file_type=file_ext,
-        status="uploaded"
-    )
-    
-    db.add(db_file)
-    db.commit()
-    db.refresh(db_file)
+    # Save file info to database (optional for unauthenticated users)
+    db_file = None
+    if current_user:
+        db_file = FileModel(
+            user_id=current_user.id,
+            filename=file.filename,
+            file_path=file_path,
+            file_size=len(contents),
+            file_type=file_ext,
+            status="uploaded"
+        )
+        
+        db.add(db_file)
+        db.commit()
+        db.refresh(db_file)
     
     return {
-        "file_id": db_file.id,
+        "file_id": db_file.id if db_file else None,
         "filename": file.filename,
         "file_size": len(contents),
+        "file_path": file_path,
         "message": "File uploaded successfully"
     }
 
 @router.get("/files")
 def get_user_files(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_optional_user)
 ):
     files = db.query(FileModel).filter(FileModel.user_id == current_user.id).all()
     return {
@@ -523,7 +526,7 @@ def get_user_files(
 def delete_file(
     file_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_optional_user)
 ):
     # Get file from database
     db_file = db.query(FileModel).filter(

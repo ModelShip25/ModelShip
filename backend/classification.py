@@ -1,11 +1,10 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, BackgroundTasks, Query, Form
 from sqlalchemy.orm import Session
 from database import get_db
-from models import User, Job, Result, File as FileModel
-from auth import get_current_user, get_optional_user
-from advanced_ml_service import AdvancedMLService, advanced_ml_service
-from object_detection_service import object_detection_service
-from typing import List, Dict, Any, Optional
+from models import User, Job, Result, Project, File as FileModel
+from auth import get_optional_user
+# Auth temporarily removed for development testing
+from typing import List, Dict, Any, Optional, Union
 import asyncio
 import time
 import uuid
@@ -13,6 +12,14 @@ import os
 from datetime import datetime
 from project_file_manager import project_file_manager
 from text_ml_service import text_ml_service
+from advanced_ml_service import advanced_ml_service
+from object_detection_service import object_detection_service
+import logging
+import tempfile
+import json
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/classify", tags=["classification"])
 
@@ -438,13 +445,13 @@ classification_service = ClassificationService()
 @router.post("/image")
 async def classify_single_image(
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Classify a single image - for testing and quick classification"""
     
-    # Check user credits
-    if current_user.credits_remaining < 1:
+    # Check user credits (skip for unauthenticated users)
+    if current_user and current_user.credits_remaining < 1:
         raise HTTPException(status_code=402, detail="Insufficient credits")
     
     # Validate file type
@@ -471,9 +478,12 @@ async def classify_single_image(
         # Clean up temp file
         os.remove(temp_path)
         
-        # Deduct credit
-        current_user.credits_remaining -= 1
-        db.commit()
+        # Deduct credit (only for authenticated users)
+        credits_remaining = None
+        if current_user:
+            current_user.credits_remaining -= 1
+            db.commit()
+            credits_remaining = current_user.credits_remaining
         
         return {
             "predicted_label": result["predicted_label"],
@@ -481,7 +491,7 @@ async def classify_single_image(
             "processing_time": result["processing_time"],
             "classification_id": result["classification_id"],
             "model_used": result["model_used"],
-            "credits_remaining": current_user.credits_remaining,
+            "credits_remaining": credits_remaining,
             "metadata": result.get("processing_metadata", {}),
             "quality_metrics": result.get("quality_metrics", {})
         }
@@ -666,7 +676,7 @@ async def create_batch_classification_job(
     files: List[UploadFile] = File(...),
     job_type: str = "image",
     background_tasks: BackgroundTasks = BackgroundTasks(),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Create a new batch classification job"""
@@ -792,7 +802,7 @@ async def get_available_models():
 @router.get("/jobs/{job_id}")
 def get_job_status(
     job_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Get the status of a classification job"""
@@ -825,7 +835,7 @@ def get_job_status(
 
 @router.get("/jobs")
 def get_user_jobs(
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db),
     limit: int = Query(default=20, le=100),
     offset: int = Query(default=0, ge=0)
@@ -863,7 +873,7 @@ def get_user_jobs(
 @router.get("/results/{job_id}")
 def get_job_results(
     job_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db),
     include_errors: bool = Query(default=False),
     confidence_threshold: float = Query(default=0.0, ge=0.0, le=1.0)
@@ -938,13 +948,13 @@ async def classify_single_text(
     classification_type: str = Form("sentiment"),
     custom_categories: List[str] = Form(default=None),
     include_metadata: bool = Form(False),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Classify a single text - supports sentiment, emotion, topic, spam, toxicity, language, ner, named_entity"""
     
-    # Check user credits
-    if current_user.credits_remaining < 1:
+    # Check user credits (skip for unauthenticated users)
+    if current_user and current_user.credits_remaining < 1:
         raise HTTPException(status_code=402, detail="Insufficient credits")
     
     # Validate classification type
@@ -965,9 +975,12 @@ async def classify_single_text(
             include_metadata=include_metadata
         )
         
-        # Deduct credit
-        current_user.credits_remaining -= 1
-        db.commit()
+        # Deduct credit (only for authenticated users)
+        credits_remaining = None
+        if current_user:
+            current_user.credits_remaining -= 1
+            db.commit()
+            credits_remaining = current_user.credits_remaining
         
         # Enhanced response for different classification types
         response = {
@@ -976,7 +989,7 @@ async def classify_single_text(
             "processing_time": result["processing_time"],
             "classification_id": result["classification_id"],
             "classification_type": classification_type,
-            "credits_remaining": current_user.credits_remaining,
+            "credits_remaining": credits_remaining,
             "status": result["status"]
         }
         
@@ -1013,7 +1026,7 @@ async def classify_text_batch(
     custom_categories: List[str] = Form(default=None),
     include_metadata: bool = Form(False),
     background_tasks: BackgroundTasks = BackgroundTasks(),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     """Batch text classification with auto-approval workflow"""
@@ -1089,7 +1102,7 @@ async def classify_text_batch(
 
 @router.get("/text/models")
 async def get_available_text_models():
-    """Get available text classification models and their metadata"""
+    """Get available text classification models and their metadata - public endpoint"""
     
     try:
         models_info = text_ml_service.get_model_info()
