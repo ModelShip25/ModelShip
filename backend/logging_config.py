@@ -2,7 +2,8 @@ import logging
 import logging.handlers
 import json
 import sys
-import os
+from contextlib import contextmanager
+from os import getenv
 from datetime import datetime
 from typing import Dict, Any, Optional
 from pathlib import Path
@@ -70,12 +71,17 @@ class ProductionLogger:
                  log_level: str = "INFO",
                  log_format: str = "text",
                  log_file: Optional[str] = None,
-                 enable_console: bool = True):
+                 enable_console: bool = True,
+                 environment: str = getenv("ENV", "development")):
         self.log_level = getattr(logging, log_level.upper())
         self.log_format = log_format
         self.log_file = log_file
         self.enable_console = enable_console
-        self.setup_logging()
+
+        # Adjust log levels based on environment
+        self.log_level = logging.DEBUG if environment == "development" else self.log_level
+
+        # Setup logging
     
     def setup_logging(self):
         """Configure logging with proper handlers and formatters"""
@@ -158,8 +164,29 @@ class ProductionLogger:
         ml_logger.addHandler(ml_handler)
         ml_logger.setLevel(logging.INFO)
         
+        # Auth logger
+        auth_logger = logging.getLogger("auth")
+        auth_handler = logging.handlers.RotatingFileHandler(
+            filename="storage/logs/auth.log",
+            maxBytes=10_000_000,  # 10MB
+            backupCount=5
+        )
+        auth_handler.setFormatter(JSONFormatter())
+        auth_logger.addHandler(auth_handler)
+        auth_logger.setLevel(logging.INFO)
+
+        # Review logger
+        review_logger = logging.getLogger("review")
+        review_handler = logging.handlers.RotatingFileHandler(
+            filename="storage/logs/review.log",
+            maxBytes=10_000_000,  # 10MB
+            backupCount=5
+        )
+        review_handler.setFormatter(JSONFormatter())
+        review_logger.addHandler(review_handler)
+        review_logger.setLevel(logging.INFO)
+
         # Error logger
-        error_logger = logging.getLogger("errors")
         error_handler = logging.handlers.RotatingFileHandler(
             filename="storage/logs/errors.log",
             maxBytes=10_000_000,  # 10MB
@@ -169,6 +196,15 @@ class ProductionLogger:
         error_logger.addHandler(error_handler)
         error_logger.setLevel(logging.ERROR)
     
+    # Summary logging
+    @staticmethod
+    def log_summary(logger_name: str, message: str, summary: Dict[str, Any]):
+        logger = logging.getLogger(logger_name)
+        logger.info(
+            f"{message}",
+            extra=summary
+        )
+
     def configure_third_party_loggers(self):
         """Configure third-party library loggers to reduce noise"""
         

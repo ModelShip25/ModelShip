@@ -12,6 +12,7 @@ import {
   EyeIcon,
   PencilIcon
 } from '@heroicons/react/24/outline';
+import apiClient from '../services/api';
 
 interface FileItem {
   id: number;
@@ -61,18 +62,12 @@ const Classification: React.FC = () => {
       setLoading(true);
       
       // Fetch project details
-      const projectResponse = await fetch(`http://localhost:8000/api/projects/${projectId}`);
-      if (projectResponse.ok) {
-        const projectData = await projectResponse.json();
-        setProject(projectData);
-      }
+      const projectResponse = await apiClient.get(`/api/projects/${projectId}`);
+      setProject(projectResponse.data);
 
       // Fetch project files
-      const filesResponse = await fetch(`http://localhost:8000/api/projects/${projectId}/files`);
-      if (filesResponse.ok) {
-        const filesData = await filesResponse.json();
-        setFiles(filesData.files || []);
-      }
+      const filesResponse = await apiClient.get(`/api/projects/${projectId}/files`);
+      setFiles(filesResponse.data.files || []);
 
       setError(null);
     } catch (err) {
@@ -99,36 +94,28 @@ const Classification: React.FC = () => {
       formData.append('file_id', file.id.toString());
       formData.append('project_id', projectId!);
 
-      const response = await fetch(`http://localhost:8000${endpoint}`, {
-        method: 'POST',
-        body: formData,
-      });
+      const response = await apiClient.post(endpoint, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const result = response.data;
+      
+      // Update the current file with classification result
+      setFiles(prev => prev.map((f, index) => 
+        index === currentFileIndex 
+          ? { 
+              ...f, 
+              classification_result: {
+                predicted_label: result.predicted_label || result.label,
+                confidence: result.confidence || 0.85,
+                reviewed: false
+              }
+            } 
+          : f
+      ));
 
-      if (response.ok) {
-        const result = await response.json();
-        
-        // Update the current file with classification result
-        setFiles(prev => prev.map((f, index) => 
-          index === currentFileIndex 
-            ? { 
-                ...f, 
-                classification_result: {
-                  predicted_label: result.predicted_label || result.label,
-                  confidence: result.confidence || 0.85,
-                  reviewed: false
-                }
-              } 
-            : f
-        ));
-
-        // Auto-advance if auto-classify is enabled
-        if (autoClassify && currentFileIndex < files.length - 1) {
-          setTimeout(() => {
-            setCurrentFileIndex(prev => prev + 1);
-          }, 1000);
-        }
-      } else {
-        throw new Error('Classification failed');
+      // Auto-advance if auto-classify is enabled
+      if (autoClassify && currentFileIndex < files.length - 1) {
+        setTimeout(() => {
+          setCurrentFileIndex(prev => prev + 1);
+        }, 1000);
       }
     } catch (err) {
       setError('Classification failed');

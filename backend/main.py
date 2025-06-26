@@ -46,14 +46,14 @@ from ml_assisted_prelabeling import router as prelabeling_router
 from consensus_controls import router as consensus_router
 
 # ✅ ADD SIMPLE PROJECT API - NO DATABASE REQUIRED
-from simple_project_api import router as simple_project_router
+# from simple_project_api import router as simple_project_router  # Temporarily disabled - missing simple_storage dependency
 
 # Initialize production logging if available
 if PRODUCTION_MODE:
     prod_logger = ProductionLogger(
-        log_level=settings.LOG_LEVEL,
-        log_format=settings.LOG_FORMAT,
-        log_file=settings.LOG_FILE,
+        log_level=getattr(settings, 'LOG_LEVEL', 'INFO'),
+        log_format=getattr(settings, 'LOG_FORMAT', '%(asctime)s - %(name)s - %(levelname)s - %(message)s'),
+        log_file=getattr(settings, 'LOG_FILE', 'logs/app.log'),
         enable_console=True
     )
     logger = get_logger(__name__)
@@ -75,9 +75,9 @@ app = FastAPI(
     title="ModelShip API",
     description="AI-powered auto-labeling platform for images and text - Production Ready" if PRODUCTION_MODE else "AI-powered auto-labeling platform for images and text",
     version="1.0.0",
-    docs_url="/docs" if not (PRODUCTION_MODE and settings.is_production) else None,
-    redoc_url="/redoc" if not (PRODUCTION_MODE and settings.is_production) else None,
-    debug=not (PRODUCTION_MODE and settings.is_production)
+    docs_url="/docs" if not (PRODUCTION_MODE and getattr(settings, 'is_production', False)) else None,
+    redoc_url="/redoc" if not (PRODUCTION_MODE and getattr(settings, 'is_production', False)) else None,
+    debug=not (PRODUCTION_MODE and getattr(settings, 'is_production', False))
 )
 
 # Initialize database tables
@@ -106,10 +106,10 @@ else:
 if PRODUCTION_MODE:
     app.include_router(health_router)
 
-# Include all routers with API versioning
-API_PREFIX = "/api/v1" if PRODUCTION_MODE else ""
+# Set API_PREFIX to empty string for all environments
+API_PREFIX = ""
 
-app.include_router(simple_project_router, prefix=API_PREFIX)  # ✅ SIMPLE PROJECT API FIRST
+# app.include_router(simple_project_router, prefix=API_PREFIX)  # ✅ SIMPLE PROJECT API FIRST - Temporarily disabled
 app.include_router(file_router, prefix=API_PREFIX)
 app.include_router(classify_router, prefix=API_PREFIX)
 app.include_router(text_classify_router, prefix=API_PREFIX)
@@ -146,12 +146,12 @@ if ml_export_router:
 
 # Note: Project management router already included above
 
-# Object detection service integration
+# SAHI Enhanced object detection service integration
 try:
-    from object_detection_service import object_detection_service
-    logging.info("✅ Object detection service loaded")
+    from sahi_enhanced_detection_service import sahi_enhanced_detection_service
+    logging.info("✅ SAHI Enhanced object detection service loaded")
 except ImportError as e:
-    logging.warning(f"❌ Object detection service not found: {e}")
+    logging.warning(f"❌ SAHI Enhanced object detection service not found: {e}")
 
 # Additional optional routers
 try:
@@ -260,31 +260,13 @@ if PRODUCTION_MODE:
 @app.get("/")
 def read_root():
     """API root endpoint with system information"""
+    # Build the response directly without type conflicts
     response = {
         "message": "ModelShip API is running!",
         "version": "1.0.0",
-        "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
-    }
-    
-    if PRODUCTION_MODE:
-        response.update({
-            "environment": settings.ENVIRONMENT,
-            "features": {
-                "object_detection": settings.ENABLE_OBJECT_DETECTION,
-                "text_classification": settings.ENABLE_TEXT_CLASSIFICATION,
-                "active_learning": settings.ENABLE_ACTIVE_LEARNING,
-                "expert_review": settings.ENABLE_EXPERT_REVIEW,
-                "advanced_exports": settings.ENABLE_ADVANCED_EXPORTS
-            },
-            "documentation": "/docs" if not settings.is_production else "disabled",
-            "health_check": "/health"
-        })
-    
-    return response
-        "version": "1.0.0",
         "docs": "/docs",
         "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
         "features": {
             "phase_1_complete": True,
             "auto_labeling": True,
@@ -308,9 +290,28 @@ def read_root():
             "export": "/api/export/project/{project_id}"
         }
     }
-
+    
+    # Add production-specific information if available
+    if PRODUCTION_MODE:
+        try:
+            response.update({
+                "environment": getattr(settings, 'ENVIRONMENT', 'production'),
+                "production_features": {
+                    "object_detection": getattr(settings, 'ENABLE_OBJECT_DETECTION', True),
+                    "text_classification": getattr(settings, 'ENABLE_TEXT_CLASSIFICATION', True),
+                    "active_learning": getattr(settings, 'ENABLE_ACTIVE_LEARNING', True),
+                    "expert_review": getattr(settings, 'ENABLE_EXPERT_REVIEW', True),
+                    "advanced_exports": getattr(settings, 'ENABLE_ADVANCED_EXPORTS', True)
+                },
+                "documentation": "/docs" if not getattr(settings, 'is_production', False) else "disabled",
+                "health_check": "/health"
+            })
+        except Exception:
+            pass  # Fall back to basic response if production settings unavailable
+    
+    return response
 @app.get("/health")
-def health_check():
+def health_check_endpoint():
     """Health check endpoint for monitoring"""
     return {
         "status": "healthy",

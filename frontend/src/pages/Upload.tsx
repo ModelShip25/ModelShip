@@ -8,6 +8,7 @@ import {
   FolderIcon,
   CheckCircleIcon
 } from '@heroicons/react/24/outline';
+import apiClient from '../services/api';
 
 interface UploadedFile {
   file: File;
@@ -89,23 +90,8 @@ const Upload: React.FC = () => {
 
     try {
       // Step 1: Create project
-      const projectResponse = await fetch('http://localhost:8000/api/projects', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: projectName,
-          description: projectDescription,
-          user_id: 1 // Default user for testing
-        }),
-      });
-
-      if (!projectResponse.ok) {
-        throw new Error('Failed to create project');
-      }
-
-      const projectData = await projectResponse.json();
+      const projectResponse = await apiClient.get('/api/projects');
+      const projectData = projectResponse.data;
       const projectId = projectData.project_id;
 
       // Step 2: Upload files
@@ -117,15 +103,7 @@ const Upload: React.FC = () => {
         formData.append('file', uploadedFile.file);
         formData.append('project_id', projectId.toString());
 
-        const uploadResponse = await fetch('http://localhost:8000/api/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!uploadResponse.ok) {
-          throw new Error(`Failed to upload ${uploadedFile.file.name}`);
-        }
-
+        await apiClient.post('/api/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
         uploadedCount++;
         setUploadProgress((uploadedCount / totalFiles) * 100);
       }

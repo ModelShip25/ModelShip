@@ -4,15 +4,24 @@ import torch
 import os
 import time
 import asyncio
-from typing import List, Dict, Any, Union, Optional
+from typing import List, Dict, Any, Union, Optional, Callable
 from datetime import datetime
 import uuid
 import logging
+from text_ml_service_fixed import FixedTextMLService
+from sqlalchemy.orm import Session
+from datetime import timedelta
+from config import settings
 from enum import Enum
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Cache for model outputs to avoid redundant processing
+MODEL_CACHE = {}
+MODEL_CACHE_SIZE = 100  # Max number of results to cache
+MODEL_CACHE_EXPIRY = 3600  # Cache expiry in seconds
 
 class ModelTier(Enum):
     """Model tiers for different customer segments"""
@@ -39,6 +48,87 @@ class ConfidenceCalibrator:
         # Ensure bounds
         return max(0.0, min(1.0, calibrated))
 
+class ModelHealthMonitor:
+    """Monitor model health and performance"""
+    
+    def __init__(self):
+        self.model_status = {}
+        self.health_check_interval = 60 * 60  # 1 hour
+        self.last_checked = {}
+    
+    def record_prediction_result(self, model_name: str, success: bool, latency: float):
+        """Record prediction success/failure for health monitoring"""
+        if model_name not in self.model_status:
+            self.model_status[model_name] = {
+                "total_requests": 0,
+                "successful_requests": 0,
+                "failed_requests": 0,
+                "latencies": [],
+                "health_status": "healthy"
+            }
+        
+        status = self.model_status[model_name]
+        status["total_requests"] += 1
+        
+        if success:
+            status["successful_requests"] += 1
+        else:
+            status["failed_requests"] += 1
+        
+        status["latencies"].append(latency)
+        if len(status["latencies"]) > 100:
+            status["latencies"].pop(0)  # Keep only last 100 latencies
+        
+        # Update health status
+        self._update_health_status(model_name)
+    
+    def _update_health_status(self, model_name: str):
+        """Update health status based on recent performance"""
+        status = self.model_status[model_name]
+        
+        if status["total_requests"] < 5:
+            return  # Not enough data
+        
+        # Calculate error rate
+        error_rate = status["failed_requests"] / status["total_requests"]
+        
+        # Calculate latency p95
+        latencies = sorted(status["latencies"])
+        p95_index = int(len(latencies) * 0.95)
+        p95_latency = latencies[p95_index] if latencies else 0
+        
+        # Update health status
+        if error_rate > 0.5:
+            status["health_status"] = "critical"
+        elif error_rate > 0.2:
+            status["health_status"] = "unhealthy"
+        elif p95_latency > 10.0:  # More than 10 seconds for p95
+            status["health_status"] = "degraded"
+        else:
+            status["health_status"] = "healthy"
+    
+    def get_model_health(self, model_name: str) -> Dict[str, Any]:
+        """Get health status for a specific model"""
+        if model_name not in self.model_status:
+            return {"health_status": "unknown", "message": "No data available"}
+        
+        status = self.model_status[model_name]
+        
+        # Calculate average latency
+        avg_latency = sum(status["latencies"]) / len(status["latencies"]) if status["latencies"] else 0
+        
+        return {
+            "health_status": status["health_status"],
+            "total_requests": status["total_requests"],
+            "error_rate": round(status["failed_requests"] / status["total_requests"] * 100, 2) if status["total_requests"] > 0 else 0,
+            "average_latency": round(avg_latency, 3),
+            "p95_latency": round(sorted(status["latencies"])[int(len(status["latencies"]) * 0.95)] if len(status["latencies"]) > 0 else 0, 3)
+        }
+    
+    def get_all_model_health(self) -> Dict[str, Dict[str, Any]]:
+        """Get health status for all models"""
+        return {model: self.get_model_health(model) for model in self.model_status}
+
 class AdvancedMLService:
     """Advanced ML service with enterprise features and multi-model support"""
     
@@ -47,6 +137,7 @@ class AdvancedMLService:
         self.processors = {}
         self.model_metadata = {}
         self.calibrator = ConfidenceCalibrator()
+        self.health_monitor = ModelHealthMonitor()
         
         # Initialize models for different tiers
         self._initialize_startup_models()
@@ -90,7 +181,8 @@ class AdvancedMLService:
             logger.info("Startup models initialized successfully")
             
         except Exception as e:
-            logger.error(f"Failed to initialize startup models: {str(e)}")
+            error_logger = logging.getLogger("errors")
+            error_logger.error(f"Failed to initialize startup models: {str(e)}")
             raise
     
     def _initialize_enterprise_models(self):
@@ -123,6 +215,30 @@ class AdvancedMLService:
         except Exception as e:
             logger.warning(f"Enterprise models initialization failed: {str(e)}")
     
+    async def classify_text_single(self, text: str, 
+                                   classification_type: str = "sentiment", 
+                                   custom_categories: Optional[List[str]] = None, 
+                                   progress_callback: Optional[Callable] = None) -> Dict[str, Any]:
+        try:
+            response = await text_ml_service.classify_text_single(text, classification_type, custom_categories)
+            if progress_callback:
+                progress_callback(1.0, f"Processed text for {classification_type}")
+            return response
+        except Exception as e:
+            logger.error(f"Error during text classification: {e}")
+            return {
+                "status": "error",
+                "message": str(e)
+            }
+    
+    async def classify_text_batch(self, texts: List[str], 
+                                 classification_type: str = "sentiment", 
+                                 custom_categories: Optional[List[str]] = None, 
+                                 batch_size: int = 16, 
+                                 progress_callback: Optional[Callable] = None) -> List[Dict[str, Any]]:
+        results = await text_ml_service.classify_text_batch(texts, 
+                                classification_type, custom_categories, batch_size, progress_callback)
+        return results
     async def classify_image_single(self, 
                                   image_path: str, 
                                   model_name: str = "resnet50",
@@ -152,9 +268,34 @@ class AdvancedMLService:
             # Load and preprocess image
             image = await self._preprocess_image(image_path)
             
-            # Run classification
-            model = self.models[model_name]
-            raw_results = model(image)
+            # Check cache for this image
+            cache_key = f"{image_path}:{model_name}"
+            if cache_key in MODEL_CACHE:
+                cache_entry = MODEL_CACHE[cache_key]
+                # Check if cache entry is still valid
+                if time.time() - cache_entry["timestamp"] < MODEL_CACHE_EXPIRY:
+                    logger.info(f"Using cached result for {image_path}")
+                    raw_results = cache_entry["results"]
+                else:
+                    # Cache expired, remove it
+                    del MODEL_CACHE[cache_key]
+            
+            # If not in cache or expired, run the model
+            if cache_key not in MODEL_CACHE:
+                model = self.models[model_name]
+                raw_results = model(image)
+                
+                # Update cache
+                MODEL_CACHE[cache_key] = {
+                    "results": raw_results,
+                    "timestamp": time.time()
+                }
+                
+                # Manage cache size
+                if len(MODEL_CACHE) > MODEL_CACHE_SIZE:
+                    # Remove oldest entry
+                    oldest_key = min(MODEL_CACHE.keys(), key=lambda k: MODEL_CACHE[k]["timestamp"])
+                    del MODEL_CACHE[oldest_key]
             
             # Process results with confidence calibration
             processed_results = self._process_classification_results(
@@ -163,8 +304,9 @@ class AdvancedMLService:
             
             processing_time = time.time() - start_time
             
-            # Update performance stats
+            # Update performance stats and health monitoring
             self._update_performance_stats(model_name, processing_time, True)
+            self.health_monitor.record_prediction_result(model_name, True, processing_time)
             
             # Build response
             response = {
@@ -198,7 +340,9 @@ class AdvancedMLService:
             return response
             
         except Exception as e:
-            self._update_performance_stats(model_name, time.time() - start_time, False)
+            processing_time = time.time() - start_time
+            self._update_performance_stats(model_name, processing_time, False)
+            self.health_monitor.record_prediction_result(model_name, False, processing_time)
             logger.error(f"Classification failed for {image_path}: {str(e)}")
             
             return {
@@ -393,15 +537,30 @@ class AdvancedMLService:
             )
         }
     
-    def get_available_models(self) -> Dict[str, Any]:
-        """Get information about available models"""
+    def get_health_check(self) -> Dict[str, Any]:
+        """Get health status for all models"""
         return {
-            model_key: {
-                **metadata,
-                "status": "available" if model_key in self.models else "unavailable"
-            }
-            for model_key, metadata in self.model_metadata.items()
+            "timestamp": datetime.utcnow().isoformat(),
+            "overall_status": "healthy",  # TODO: Aggregate from individual models
+            "models": self.health_monitor.get_all_model_health()
         }
+
+    def get_available_models(self) -> Dict[str, Any]:
+        """Get information about available models with health status"""
+        models_info = {}
+        
+        for model_key, metadata in self.model_metadata.items():
+            health_status = "unknown"
+            if model_key in self.models:
+                health_status = self.health_monitor.get_model_health(model_key).get("health_status", "unknown")
+            
+            models_info[model_key] = {
+                **metadata,
+                "status": "available" if model_key in self.models else "unavailable",
+                "health_status": health_status
+            }
+        
+        return models_info
 
 # Legacy compatibility wrapper
 class MLService:
@@ -448,5 +607,8 @@ class MLService:
         return ["txt", "csv"]
 
 # Global ML service instances
+# Add Text Classification Service
+text_ml_service = FixedTextMLService()  # Use the fixed, lightweight service for text
+
 ml_service = MLService()  # Legacy compatibility
 advanced_ml_service = AdvancedMLService()  # New advanced service

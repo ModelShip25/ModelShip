@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../services/api';
+import apiClient from '../services/api';
 
 interface TestResult {
   success: boolean;
@@ -368,22 +368,15 @@ const ComprehensiveTestSuite: React.FC = () => {
       const endpoint = test.endpoint;
 
       if (test.method === 'GET') {
-        response = await fetch(`http://localhost:8000${endpoint}`);
+        response = await apiClient.get(endpoint);
       } else {
-        response = await fetch(`http://localhost:8000${endpoint}`, {
-          method: test.method,
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: test.payload ? JSON.stringify(test.payload) : undefined,
-        });
+        response = await apiClient.post(endpoint, test.payload ? JSON.stringify(test.payload) : undefined, { headers: { 'Content-Type': 'application/json' } });
       }
 
-      const data = await response.json();
-      
+      const data = response.data;
       const result: TestResult = {
-        success: response.ok,
-        message: response.ok ? 'Test passed successfully' : data.detail || 'Test failed',
+        success: true,
+        message: 'Test passed successfully',
         data: data,
         timestamp: new Date().toISOString()
       };

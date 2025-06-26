@@ -11,6 +11,7 @@ import {
   ClockIcon,
   EyeIcon
 } from '@heroicons/react/24/outline';
+import apiClient from '../services/api';
 
 interface ClassificationResult {
   predicted_label: string;
@@ -61,16 +62,8 @@ const TestClassification: React.FC = () => {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      const response = await fetch('http://localhost:8000/api/classify/image/quick', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const response = await apiClient.post('/api/classify/image/quick', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const data = response.data;
       setResult(data);
     } catch (err: any) {
       setError(err.message || 'Classification failed');
@@ -90,16 +83,8 @@ const TestClassification: React.FC = () => {
       formData.append('text', textInput);
       formData.append('classification_type', textType);
 
-      const response = await fetch('http://localhost:8000/api/classify/text/quick', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const response = await apiClient.post('/api/classify/text/quick', formData);
+      const data = response.data;
       setResult(data);
     } catch (err: any) {
       setError(err.message || 'Text classification failed');
@@ -127,16 +112,8 @@ const TestClassification: React.FC = () => {
         formData.append('files', file);
       });
 
-      const response = await fetch('http://localhost:8000/api/classify/batch/quick', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const response = await apiClient.post('/api/classify/batch/quick', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const data = response.data;
       setBatchResults([data]);
     } catch (err: any) {
       setError(err.message || 'Batch processing failed');

@@ -7,6 +7,7 @@ import {
   EyeSlashIcon,
   UserPlusIcon
 } from '@heroicons/react/24/outline';
+import apiClient from '../services/api';
 
 const Login: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -36,32 +37,21 @@ const Login: React.FC = () => {
 
     try {
       const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
-      const response = await fetch(`http://localhost:8000${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          password,
-          ...(isLogin ? {} : { confirm_password: confirmPassword })
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        // Store auth token if provided
-        if (data.access_token) {
-          localStorage.setItem('auth_token', data.access_token);
-        }
-        
-        // Redirect to dashboard
-        navigate('/dashboard');
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Authentication failed');
+      const loginData = {
+        email,
+        password,
+        ...(isLogin ? {} : { confirm_password: confirmPassword })
+      };
+      const response = await apiClient.post(endpoint, loginData);
+      const data = response.data;
+      
+      // Store auth token if provided
+      if (data.access_token) {
+        localStorage.setItem('auth_token', data.access_token);
       }
+      
+      // Redirect to dashboard
+      navigate('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed');
     } finally {

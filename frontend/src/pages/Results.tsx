@@ -11,6 +11,7 @@ import {
   DocumentTextIcon,
   ChartBarIcon
 } from '@heroicons/react/24/outline';
+import apiClient from '../services/api';
 
 interface ResultItem {
   id: number;
@@ -80,18 +81,12 @@ const Results: React.FC = () => {
       setLoading(true);
       
       // Fetch project details
-      const projectResponse = await fetch(`http://localhost:8000/api/projects/${projectId}`);
-      if (projectResponse.ok) {
-        const projectData = await projectResponse.json();
-        setProject(projectData);
-      }
+      const projectResponse = await apiClient.get(`/api/projects/${projectId}`);
+      setProject(projectResponse.data);
 
       // Fetch results
-      const resultsResponse = await fetch(`http://localhost:8000/api/projects/${projectId}/results`);
-      if (resultsResponse.ok) {
-        const resultsData = await resultsResponse.json();
-        setResults(resultsData.results || []);
-      }
+      const resultsResponse = await apiClient.get(`/api/projects/${projectId}/results`);
+      setResults(resultsResponse.data.results || []);
 
       setError(null);
     } catch (err) {
@@ -128,20 +123,14 @@ const Results: React.FC = () => {
     
     setExporting(true);
     try {
-      const response = await fetch(`http://localhost:8000/api/export/${projectId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          format: exportFormat,
-          include_reviewed_only: false,
-          include_confidence: true
-        }),
-      });
+      const response = await apiClient.post(`/api/export/${projectId}`, {
+        format: exportFormat,
+        include_reviewed_only: false,
+        include_confidence: true
+      }, { responseType: 'blob' });
 
-      if (response.ok) {
-        const blob = await response.blob();
+      if (response.data) {
+        const blob = new Blob([response.data]);
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.style.display = 'none';

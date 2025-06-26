@@ -4,51 +4,62 @@
 
 ModelShip is an AI-powered platform that automatically detects and labels objects in images with **visual bounding boxes** and annotations. Perfect for computer vision projects, dataset creation, and automated content analysis.
 
-## 🆕 NEW FEATURES: Object Detection with Visual Annotations
+## 🆕 NEW FEATURES: SAHI-Enhanced Object Detection with Superior Small Object Detection
 
-### 🎯 Multi-Object Detection
-- **Detect multiple objects** in a single image (not just single classification!)
+### 🎯 SAHI-Enhanced Multi-Object Detection
+- **SAHI (Slicing Aided Hyper Inference)** for superior small object detection
+- **Detect multiple objects** including tiny objects that regular YOLO misses
 - **80+ object categories** from COCO dataset (people, cars, animals, furniture, food, etc.)
-- **Real-time bounding boxes** with confidence scores
-- **Object tracking capabilities** for video analysis
+- **Sliced inference** for high-resolution images and small object detection
+- **Enhanced quality scoring** with confidence-based filtering
 
-### 🖼️ Visual Annotations
-- **Automatic bounding box drawing** around detected objects
-- **Labels with confidence scores** overlaid on images
-- **Image filename watermarks** for organization
-- **Color-coded categories** for easy identification
-- **Detection summary statistics** displayed on images
+### 🖼️ Advanced Visual Annotations
+- **Quality-based bounding box styling** (excellent ★, good ●, fair ◐, poor ○)
+- **SAHI enhancement indicators** 🔍 for objects detected through slicing
+- **Enhanced labels** with confidence scores and quality indicators
+- **Color-coded quality levels** for easy identification
+- **Comprehensive detection summaries** with quality distribution
 
-### ⚡ Performance Models
-- **YOLOv8 Nano**: Ultra-fast detection (< 1 second)
-- **YOLOv8 Small**: Balanced speed and accuracy
-- **Confidence thresholds**: Filter detections by certainty
+### ⚡ SAHI-Enhanced Performance Models
+- **SAHI + YOLOv8 Nano**: Ultra-fast detection with SAHI enhancement for small objects
+- **SAHI + YOLOv8 Small**: Balanced speed with superior accuracy for all object sizes
+- **Configurable slicing parameters**: Custom slice sizes and overlap ratios
+- **Advanced postprocessing**: GREEDYNMMS and NMS options
 
 ## 🚀 Quick Start - Object Detection
 
-### 1. Single Image Detection
+### 1. SAHI-Enhanced Single Image Detection
 ```bash
-# Upload an image and get annotated results
+# Upload an image and get SAHI-enhanced annotated results
 POST /api/classify/image/detect
 - file: your_image.jpg
-- model_name: "yolo8n" (optional)
+- model_name: "sahi-yolo8n" (optional)
 - confidence_threshold: 0.25 (optional)
 - annotate_image: true (optional)
+- use_sahi_slicing: true (optional)
+- slice_height: 640 (optional)
+- slice_width: 640 (optional)
+- overlap_height_ratio: 0.2 (optional)
+- overlap_width_ratio: 0.2 (optional)
 ```
 
-**Response includes:**
-- List of detected objects with bounding boxes
-- Confidence scores for each detection
-- Annotated image with visual overlays
-- Object summary statistics
+**Enhanced Response includes:**
+- List of detected objects with bounding boxes and quality scores
+- Confidence scores and quality levels for each detection
+- SAHI enhancement indicators for small object detection
+- Enhanced annotated image with quality-based visual overlays
+- Comprehensive object summary statistics with quality distribution
 
-### 2. Batch Object Detection
+### 2. SAHI-Enhanced Batch Object Detection
 ```bash
-# Process up to 5 images simultaneously (demo)
+# Process up to 10 images simultaneously with SAHI enhancement
 POST /api/classify/batch/detect
 - files: [image1.jpg, image2.png, ...]
-- model_name: "yolo8n"
+- model_name: "sahi-yolo8n"
 - confidence_threshold: 0.25
+- use_sahi_slicing: true
+- slice_height: 640
+- slice_width: 640
 ```
 
 ### 3. View Annotated Images
@@ -73,59 +84,92 @@ GET /api/classify/annotated/{image_filename}
 
 ### And many more! (80 total categories)
 
-## 🎨 Example Detection Response
+## 🎨 Enhanced SAHI Detection Response
 
 ```json
 {
   "detection_id": "uuid-here",
   "filename": "my_photo.jpg",
-  "total_objects_detected": 3,
+  "total_objects_detected": 4,
+  "sahi_enhanced": true,
+  "sahi_slicing_enabled": true,
+  "detection_method": "SAHI + YOLOv8",
   "detections": [
     {
       "class_name": "person",
-      "confidence": 0.95,
+      "confidence": 0.92,
+      "quality_score": 0.89,
+      "quality_level": "excellent",
       "bbox": {
-        "x1": 100, "y1": 50,
-        "x2": 300, "y2": 400,
-        "center_x": 200, "center_y": 225
-      }
+        "x1": 100, "y1": 50, "x2": 300, "y2": 400,
+        "center_x": 200, "center_y": 225, "width": 200, "height": 350
+      },
+      "is_high_quality": true,
+      "sahi_detected": true
     },
     {
-      "class_name": "car",
-      "confidence": 0.87,
+      "class_name": "cell phone",
+      "confidence": 0.78,
+      "quality_score": 0.82,
+      "quality_level": "excellent",
       "bbox": {
-        "x1": 350, "y1": 200,
-        "x2": 600, "y2": 350
-      }
+        "x1": 450, "y1": 150, "x2": 480, "y2": 200,
+        "center_x": 465, "center_y": 175, "width": 30, "height": 50
+      },
+      "is_high_quality": true,
+      "sahi_detected": true
     }
   ],
   "summary": {
-    "unique_classes": 2,
-    "class_distribution": {"person": 1, "car": 1},
-    "average_confidence": 0.91
+    "unique_classes": 3,
+    "class_distribution": {"person": 1, "car": 1, "cell phone": 1},
+    "confidence_stats": {
+      "average": 0.85,
+      "max": 0.92,
+      "min": 0.78
+    },
+    "quality_stats": {
+      "average_quality_score": 0.84,
+      "quality_distribution": {"excellent": 3, "good": 1, "fair": 0, "poor": 0},
+      "high_quality_count": 4,
+      "quality_percentage": 100.0
+    },
+    "sahi_impact": {
+      "sahi_enhanced_detections": 4,
+      "sahi_enhancement_rate": 100.0
+    }
   },
-  "annotated_image_path": "/uploads/annotated/my_photo_annotated_12345.jpg",
-  "processing_time": 0.8,
-  "model_used": "yolo8n"
+  "slice_configuration": {
+    "slice_height": 640,
+    "slice_width": 640,
+    "overlap_height_ratio": 0.2,
+    "overlap_width_ratio": 0.2
+  },
+  "annotated_image_path": "/uploads/annotated/my_photo_sahi_enhanced.jpg",
+  "processing_time": 1.2,
+  "model_used": "sahi-yolo8n"
 }
 ```
 
 ## 🛠️ Available Models & Capabilities
 
-### Object Detection Models
-- **YOLOv8 Nano** (`yolo8n`): Ultra-fast, good accuracy
-- **YOLOv8 Small** (`yolo8s`): Balanced speed/accuracy
+### SAHI-Enhanced Object Detection Models
+- **SAHI + YOLOv8 Nano** (`sahi-yolo8n`): Ultra-fast with SAHI enhancement for small objects
+- **SAHI + YOLOv8 Small** (`sahi-yolo8s`): Balanced speed with superior accuracy for all object sizes
 
 ### Image Classification Models (Legacy)
 - **ResNet-50**: General image classification
 - **Vision Transformer**: High-accuracy classification
 
-### Supported Features
-- ✅ **Multi-object detection** with bounding boxes
-- ✅ **Visual annotations** on images
-- ✅ **Batch processing** (up to 100 images)
-- ✅ **Real-time processing** (< 2 seconds per image)
-- ✅ **Confidence filtering** and thresholds
+### SAHI Enhanced Features
+- ✅ **Superior small object detection** with sliced inference
+- ✅ **Quality-based scoring** and visual annotations
+- ✅ **Configurable slicing parameters** for optimal performance
+- ✅ **Advanced postprocessing** (GREEDYNMMS, NMS)
+- ✅ **Enhanced batch processing** (up to 100 images with SAHI optimization)
+- ✅ **Real-time processing** with quality indicators
+- ✅ **Confidence filtering** with class-specific thresholds
+- ✅ **SAHI enhancement indicators** for transparency
 - ✅ **80+ object categories** from COCO dataset
 - ✅ **Export capabilities** (CSV, JSON with coordinates)
 

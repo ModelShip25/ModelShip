@@ -13,7 +13,7 @@ from datetime import datetime
 from project_file_manager import project_file_manager
 from text_ml_service import text_ml_service
 from advanced_ml_service import advanced_ml_service
-from object_detection_service import object_detection_service
+from sahi_enhanced_detection_service import sahi_enhanced_detection_service
 import logging
 import tempfile
 import json
@@ -176,8 +176,11 @@ class ClassificationService:
         try:
             # Update job status to processing
             job = db.query(Job).filter(Job.id == job_id).first()
-            job.status = "processing"
-            db.commit()
+            if job:
+                db.query(Job).filter(Job.id == job_id).update({
+                    "status": "processing"
+                })
+                db.commit()
             
             results = []
             processed_count = 0
@@ -189,7 +192,9 @@ class ClassificationService:
                 # Use advanced batch processing
                 def progress_callback(progress: float, message: str):
                     # Update job progress in database
-                    job.completed_items = int(progress * len(files_data))
+                    db.query(Job).filter(Job.id == job_id).update({
+                        "completed_items": int(progress * len(files_data))
+                    })
                     db.commit()
                 
                 batch_results = await self.advanced_ml_service.classify_image_batch(
@@ -232,7 +237,8 @@ class ClassificationService:
                     processed_count += 1
                 
                 # Store approval statistics in job metadata
-                job.metadata = {
+                if job:
+                    job.metadata = {
                     "auto_approval_stats": approval_stats,
                     "processing_completed_at": datetime.utcnow().isoformat()
                 }
@@ -264,8 +270,11 @@ class ClassificationService:
                         processed_count += 1
                         
                         # Update job progress
-                        job.completed_items = processed_count
-                        db.commit()
+                        if job:
+                            db.query(Job).filter(Job.id == job_id).update({
+                                "completed_items": processed_count
+                            })
+                            db.commit()
                         
                     except Exception as file_error:
                         # Add error result
@@ -311,33 +320,43 @@ class ClassificationService:
                     db.add(db_result)
                 
                 # Store approval statistics in job metadata
-                job.metadata = {
+                if job:
+                    job.metadata = {
                     "auto_approval_stats": approval_stats,
                     "processing_completed_at": datetime.utcnow().isoformat()
                 }
                 db.commit()
             
             # Mark job as completed
-            job.status = "completed"
-            job.completed_at = datetime.utcnow()
-            job.total_items = len(files_data)
-            job.completed_items = processed_count
-            db.commit()
+            if job:
+                db.query(Job).filter(Job.id == job_id).update({
+                    "status": "completed",
+                    "completed_at": datetime.utcnow(),
+                    "total_items": len(files_data),
+                    "completed_items": processed_count
+                })
+                db.commit()
             
         except Exception as e:
             # Mark job as failed
             job = db.query(Job).filter(Job.id == job_id).first()
-            job.status = "failed"
-            job.error_message = str(e)
-            db.commit()
+            if job:
+                db.query(Job).filter(Job.id == job_id).update({
+                    "status": "failed",
+                    "error_message": str(e)
+                })
+                db.commit()
 
     async def process_text_classification_job(self, job_id: int, texts_data: List[Dict], classification_type: str, db: Session):
         """Process text classification job in background with auto-approval workflow"""
         try:
             # Update job status to processing
             job = db.query(Job).filter(Job.id == job_id).first()
-            job.status = "processing"
-            db.commit()
+            if job:
+                db.query(Job).filter(Job.id == job_id).update({
+                    "status": "processing"
+                })
+                db.commit()
             
             results = []
             processed_count = 0
@@ -362,8 +381,11 @@ class ClassificationService:
                     processed_count += 1
                     
                     # Update job progress
-                    job.completed_items = processed_count
-                    db.commit()
+                    if job:
+                        db.query(Job).filter(Job.id == job_id).update({
+                            "completed_items": processed_count
+                        })
+                        db.commit()
                     
                 except Exception as text_error:
                     # Add error result
@@ -418,7 +440,8 @@ class ClassificationService:
                 db.add(db_result)
             
             # Store approval statistics in job metadata
-            job.metadata = {
+            if job:
+                job.metadata = {
                 "auto_approval_stats": approval_stats,
                 "classification_type": classification_type,
                 "processing_completed_at": datetime.utcnow().isoformat()
@@ -426,18 +449,24 @@ class ClassificationService:
             db.commit()
             
             # Mark job as completed
-            job.status = "completed"
-            job.completed_at = datetime.utcnow()
-            job.total_items = len(texts_data)
-            job.completed_items = processed_count
-            db.commit()
+            if job:
+                db.query(Job).filter(Job.id == job_id).update({
+                    "status": "completed",
+                    "completed_at": datetime.utcnow(),
+                    "total_items": len(texts_data),
+                    "completed_items": processed_count
+                })
+                db.commit()
             
         except Exception as e:
             # Mark job as failed
             job = db.query(Job).filter(Job.id == job_id).first()
-            job.status = "failed"
-            job.error_message = str(e)
-            db.commit()
+            if job:
+                db.query(Job).filter(Job.id == job_id).update({
+                    "status": "failed",
+                    "error_message": str(e)
+                })
+                db.commit()
 
 # Global service instance
 classification_service = ClassificationService()
@@ -451,7 +480,7 @@ async def classify_single_image(
     """Classify a single image - for testing and quick classification"""
     
     # Check user credits (skip for unauthenticated users)
-    if current_user and current_user.credits_remaining < 1:
+    if current_user and hasattr(current_user, 'credits_remaining') and current_user.credits_remaining is not None and current_user.credits_remaining < 1:
         raise HTTPException(status_code=402, detail="Insufficient credits")
     
     # Validate file type
@@ -480,9 +509,14 @@ async def classify_single_image(
         
         # Deduct credit (only for authenticated users)
         credits_remaining = None
-        if current_user:
-            current_user.credits_remaining -= 1
+        if current_user and hasattr(current_user, 'credits_remaining') and current_user.credits_remaining is not None:
+            # Update credits using proper SQLAlchemy syntax
+            db.query(User).filter(User.id == current_user.id).update({
+                User.credits_remaining: User.credits_remaining - 1
+            })
             db.commit()
+            # Refresh the current_user object
+            db.refresh(current_user)
             credits_remaining = current_user.credits_remaining
         
         return {
@@ -506,9 +540,14 @@ async def classify_single_image(
 async def detect_objects_in_image(
     file: UploadFile = File(...),
     project_id: int = Form(...),
-    model_name: str = Form("yolo8n"),
+    model_name: str = Form("sahi-yolo8n"),
     confidence_threshold: float = Form(0.25),
-    annotate_image: bool = Form(True)
+    annotate_image: bool = Form(True),
+    use_sahi_slicing: bool = Form(True),
+    slice_height: int = Form(640),
+    slice_width: int = Form(640),
+    overlap_height_ratio: float = Form(0.2),
+    overlap_width_ratio: float = Form(0.2)
 ):
     """Detect objects in a single image for a specific project"""
     
@@ -521,20 +560,25 @@ async def detect_objects_in_image(
         original_file_path = project_file_manager.save_original_file(
             project_id=project_id,
             file_content=file_content, 
-            filename=file.filename
+            filename=file.filename or "unknown_file"
         )
         
         if not original_file_path:
             raise HTTPException(status_code=500, detail="Failed to save uploaded file")
         
-        # Process image with object detection
-        result = await object_detection_service.detect_objects(
+        # Process image with SAHI-enhanced object detection
+        result = await sahi_enhanced_detection_service.detect_objects(
             image_path=original_file_path,
             model_name=model_name,
             confidence_threshold=confidence_threshold,
             annotate_image=annotate_image,
             save_annotated=True,
-            project_id=project_id  # Pass project_id to the detection service
+            use_sahi_slicing=use_sahi_slicing,
+            slice_height=slice_height,
+            slice_width=slice_width,
+            overlap_height_ratio=overlap_height_ratio,
+            overlap_width_ratio=overlap_width_ratio,
+            project_id=project_id
         )
         
         return {
@@ -558,9 +602,14 @@ async def detect_objects_in_image(
 async def detect_objects_batch(
     files: List[UploadFile] = File(...),
     project_id: int = Form(...),
-    model_name: str = Form("yolo8n"),
+    model_name: str = Form("sahi-yolo8n"),
     confidence_threshold: float = Form(0.25),
-    annotate_images: bool = Form(True)
+    annotate_images: bool = Form(True),
+    use_sahi_slicing: bool = Form(True),
+    slice_height: int = Form(640),
+    slice_width: int = Form(640),
+    overlap_height_ratio: float = Form(0.2),
+    overlap_width_ratio: float = Form(0.2)
 ):
     """Detect objects in multiple images for a specific project"""
     
@@ -587,7 +636,7 @@ async def detect_objects_batch(
                 original_file_path = project_file_manager.save_original_file(
                     project_id=project_id,
                     file_content=file_content,
-                    filename=file.filename
+                    filename=file.filename or "unknown_file"
                 )
                 
                 if not original_file_path:
@@ -598,13 +647,18 @@ async def detect_objects_batch(
                     })
                     continue
                 
-                # Run object detection
-                result = await object_detection_service.detect_objects(
+                # Run SAHI-enhanced object detection
+                result = await sahi_enhanced_detection_service.detect_objects(
                     image_path=original_file_path,
                     model_name=model_name,
                     confidence_threshold=confidence_threshold,
                     annotate_image=annotate_images,
                     save_annotated=True,
+                    use_sahi_slicing=use_sahi_slicing,
+                    slice_height=slice_height,
+                    slice_width=slice_width,
+                    overlap_height_ratio=overlap_height_ratio,
+                    overlap_width_ratio=overlap_width_ratio,
                     project_id=project_id
                 )
                 
@@ -690,7 +744,7 @@ async def create_batch_classification_job(
         raise HTTPException(status_code=400, detail="Batch size exceeds limit of 100 files")
     
     # Check user credits
-    if current_user.credits_remaining < len(files):
+    if current_user and hasattr(current_user, 'credits_remaining') and current_user.credits_remaining is not None and current_user.credits_remaining < len(files):
         raise HTTPException(
             status_code=402, 
             detail=f"Insufficient credits. Need {len(files)}, have {current_user.credits_remaining}"
@@ -714,8 +768,9 @@ async def create_batch_classification_job(
     
     try:
         # Create job record
+        user_id = current_user.id if current_user else None
         job = Job(
-            user_id=current_user.id,
+            user_id=user_id,
             job_type=job_type,
             total_items=len(files),
             status="queued"
@@ -750,15 +805,18 @@ async def create_batch_classification_job(
         )
         
         # Deduct credits
-        current_user.credits_remaining -= len(files)
-        db.commit()
+        if current_user and hasattr(current_user, 'credits_remaining') and current_user.credits_remaining is not None:
+            db.query(User).filter(User.id == current_user.id).update({
+                User.credits_remaining: User.credits_remaining - len(files)
+            })
+            db.commit()
         
         return {
             "job_id": job.id,
             "status": job.status,
             "total_items": job.total_items,
             "message": f"Batch classification job created with {len(files)} files",
-            "credits_remaining": current_user.credits_remaining
+            "credits_remaining": current_user.credits_remaining if current_user and hasattr(current_user, 'credits_remaining') and current_user.credits_remaining is not None else 0
         }
         
     except Exception as e:
@@ -777,9 +835,9 @@ async def get_available_models():
         classification_models = classification_service.advanced_ml_service.get_available_models()
         classification_stats = classification_service.advanced_ml_service.get_performance_stats()
         
-        # Get object detection models
-        detection_models = object_detection_service.get_available_models()
-        detection_stats = object_detection_service.get_performance_stats()
+        # Get SAHI-enhanced object detection models
+        detection_models = sahi_enhanced_detection_service.get_available_models()
+        detection_stats = sahi_enhanced_detection_service.get_performance_stats()
         
         return {
             "classification_models": classification_models,
@@ -789,9 +847,11 @@ async def get_available_models():
             "supported_image_formats": ["jpg", "jpeg", "png", "gif", "webp", "bmp"],
             "capabilities": {
                 "image_classification": "Classify entire image into single category",
+                "sahi_enhanced_detection": "SAHI-enhanced object detection with superior small object detection",
                 "object_detection": "Detect and locate multiple objects with bounding boxes",
-                "batch_processing": "Process multiple images simultaneously",
-                "annotated_images": "Generate images with visual annotations"
+                "batch_processing": "Process multiple images simultaneously with SAHI optimization",
+                "annotated_images": "Generate enhanced images with quality-based visual annotations",
+                "sliced_inference": "Advanced sliced inference for detecting small objects in high-resolution images"
             },
             "service_status": "operational"
         }
@@ -808,17 +868,20 @@ def get_job_status(
     """Get the status of a classification job"""
     
     # Get job with user verification
-    job = db.query(Job).filter(
-        Job.id == job_id,
-        Job.user_id == current_user.id
-    ).first()
+    query = db.query(Job).filter(Job.id == job_id)
+    if current_user:
+        query = query.filter(Job.user_id == current_user.id)
+    else:
+        query = query.filter(Job.user_id.is_(None))
+    
+    job = query.first()
     
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
     # Calculate progress percentage
     progress_percentage = 0
-    if job.total_items > 0:
+    if job.total_items is not None and job.total_items > 0:
         progress_percentage = round((job.completed_items / job.total_items) * 100, 2)
     
     return {
@@ -842,14 +905,19 @@ def get_user_jobs(
 ):
     """Get all classification jobs for the current user"""
     
-    jobs = db.query(Job).filter(
-        Job.user_id == current_user.id
-    ).order_by(Job.created_at.desc()).offset(offset).limit(limit).all()
+    # Build query with proper user filtering
+    query = db.query(Job)
+    if current_user:
+        query = query.filter(Job.user_id == current_user.id)
+    else:
+        query = query.filter(Job.user_id.is_(None))
+    
+    jobs = query.order_by(Job.created_at.desc()).offset(offset).limit(limit).all()
     
     jobs_data = []
     for job in jobs:
         progress_percentage = 0
-        if job.total_items > 0:
+        if job.total_items is not None and job.total_items > 0:
             progress_percentage = round((job.completed_items / job.total_items) * 100, 2)
         
         jobs_data.append({
@@ -880,11 +948,14 @@ def get_job_results(
 ):
     """Get the results of a completed classification job"""
     
-    # Verify job ownership
-    job = db.query(Job).filter(
-        Job.id == job_id,
-        Job.user_id == current_user.id
-    ).first()
+    # Build query with proper user filtering
+    query = db.query(Job).filter(Job.id == job_id)
+    if current_user:
+        query = query.filter(Job.user_id == current_user.id)
+    else:
+        query = query.filter(Job.user_id.is_(None))
+    
+    job = query.first()
     
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -908,7 +979,7 @@ def get_job_results(
             "result_id": result.id,
             "filename": result.filename,
             "predicted_label": result.predicted_label,
-            "confidence": round(result.confidence * 100, 2) if result.confidence else 0,
+            "confidence": round(result.confidence * 100, 2) if result.confidence is not None else 0,
             "processing_time": result.processing_time,
             "status": result.status,
             "error_message": result.error_message,
@@ -919,16 +990,23 @@ def get_job_results(
     # Calculate summary statistics
     successful_results = [r for r in results if r.status == "success" and r.confidence is not None]
     
+    # Calculate summary statistics safely
+    avg_confidence = 0.0
+    avg_processing_time = 0.0
+    
+    if successful_results:
+        total_confidence = sum(r.confidence for r in successful_results)
+        avg_confidence = round((total_confidence / len(successful_results)) * 100, 2)
+        
+        total_processing_time = sum(r.processing_time or 0 for r in successful_results)
+        avg_processing_time = round(total_processing_time / len(successful_results), 3)
+    
     summary = {
         "total_results": len(results),
         "successful_results": len(successful_results),
         "failed_results": len(results) - len(successful_results),
-        "average_confidence": round(
-            sum(r.confidence for r in successful_results) / len(successful_results) * 100, 2
-        ) if successful_results else 0,
-        "average_processing_time": round(
-            sum(r.processing_time for r in successful_results) / len(successful_results), 3
-        ) if successful_results else 0
+        "average_confidence": avg_confidence,
+        "average_processing_time": avg_processing_time
     }
     
     return {
@@ -954,7 +1032,7 @@ async def classify_single_text(
     """Classify a single text - supports sentiment, emotion, topic, spam, toxicity, language, ner, named_entity"""
     
     # Check user credits (skip for unauthenticated users)
-    if current_user and current_user.credits_remaining < 1:
+    if current_user and hasattr(current_user, 'credits_remaining') and current_user.credits_remaining is not None and current_user.credits_remaining < 1:
         raise HTTPException(status_code=402, detail="Insufficient credits")
     
     # Validate classification type
@@ -977,9 +1055,14 @@ async def classify_single_text(
         
         # Deduct credit (only for authenticated users)
         credits_remaining = None
-        if current_user:
-            current_user.credits_remaining -= 1
+        if current_user and hasattr(current_user, 'credits_remaining') and current_user.credits_remaining is not None:
+            # Update credits using proper SQLAlchemy syntax
+            db.query(User).filter(User.id == current_user.id).update({
+                User.credits_remaining: User.credits_remaining - 1
+            })
             db.commit()
+            # Refresh the current_user object
+            db.refresh(current_user)
             credits_remaining = current_user.credits_remaining
         
         # Enhanced response for different classification types
@@ -1037,7 +1120,7 @@ async def classify_text_batch(
     
     # Check user credits
     required_credits = len(texts)
-    if current_user.credits_remaining < required_credits:
+    if current_user and hasattr(current_user, 'credits_remaining') and current_user.credits_remaining is not None and current_user.credits_remaining < required_credits:
         raise HTTPException(status_code=402, detail=f"Insufficient credits. Need {required_credits}, have {current_user.credits_remaining}")
     
     # Validate classification type
@@ -1048,7 +1131,7 @@ async def classify_text_batch(
     try:
         # Create batch job
         job = Job(
-            user_id=current_user.id,
+            user_id=current_user.id if current_user else None,
             job_type="text",
             status="created",
             total_items=len(texts),
@@ -1072,7 +1155,12 @@ async def classify_text_batch(
         ]
         
         # Deduct credits upfront
-        current_user.credits_remaining -= required_credits
+        if current_user and hasattr(current_user, 'credits_remaining') and current_user.credits_remaining is not None:
+            db.query(User).filter(
+                User.id == current_user.id
+            ).update({
+                User.credits_remaining: User.credits_remaining - required_credits
+            })
         db.commit()
         
         # Start background processing
@@ -1091,12 +1179,17 @@ async def classify_text_batch(
             "message": f"Batch text classification job created for {len(texts)} texts",
             "classification_type": classification_type,
             "credits_deducted": required_credits,
-            "credits_remaining": current_user.credits_remaining
+            "credits_remaining": current_user.credits_remaining if current_user and current_user.credits_remaining is not None else 0
         }
         
     except Exception as e:
         # Refund credits if job creation failed
-        current_user.credits_remaining += required_credits
+        if current_user and hasattr(current_user, 'credits_remaining') and current_user.credits_remaining is not None:
+            db.query(User).filter(
+                User.id == current_user.id
+            ).update({
+                User.credits_remaining: User.credits_remaining + required_credits
+            })
         db.commit()
         raise HTTPException(status_code=500, detail=f"Failed to create batch job: {str(e)}")
 
